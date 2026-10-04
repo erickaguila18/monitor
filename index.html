@@ -1,0 +1,2624 @@
+<!DOCTYPE html>
+<html lang="es" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de EKG y Desfibrilación</title>
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Iconos Flaticon UIcons (regular rounded) -->
+    <link rel='stylesheet' href='https://cdn-uicons.flaticon.com/4.0.0/uicons-regular-rounded/css/uicons-regular-rounded.css'>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+        .font-mono-clinical {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(156, 163, 175, 0.3);
+            border-radius: 3px;
+        }
+        @keyframes pulse-alarm {
+            0%, 100% { background-color: rgba(220, 53, 69, 0.15); border-color: rgba(220, 53, 69, 0.4); }
+            50% { background-color: rgba(220, 53, 69, 0.4); border-color: rgba(220, 53, 69, 0.8); }
+        }
+        .critical-flashing {
+            animation: pulse-alarm 1.2s infinite;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fadeIn {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+        @keyframes flash-shock {
+            0% { background-color: rgba(255, 255, 255, 0.9); }
+            100% { background-color: transparent; }
+        }
+        .shock-flash-effect {
+            animation: flash-shock 0.5s ease-out forwards;
+        }
+        @keyframes cpr-beat {
+            0% { transform: scale(1); filter: brightness(1.2); }
+            50% { transform: scale(0.9); filter: brightness(0.8); }
+            100% { transform: scale(1); filter: brightness(1.2); }
+        }
+        .cpr-metronome-active {
+            animation: cpr-beat 0.54s infinite ease-in-out;
+        }
+
+/* ===== Reset ligero para neutralizar márgenes por defecto de Bootstrap Reboot
+   y preservar el layout original (equivalente al "preflight" que traía Tailwind) ===== */
+h1,h2,h3,h4,h5,h6,p,dl,dd,figure,blockquote{margin:0;}
+button{background:none;border:0;padding:0;font:inherit;color:inherit;}
+ul,ol{margin:0;padding:0;list-style:none;}
+a{color:inherit;text-decoration:none;}
+label{display:block;}
+
+/* =====================================================================
+   PALETA BOOTSTRAP 5
+   Las utilidades heredadas (bg-slate-*, text-emerald-*, etc.) se conservan
+   porque el JS las asigna por nombre, pero ahora resuelven a la paleta de
+   Bootstrap 5.3 (success / danger / warning / info / primary / indigo).
+   - Interfaz general: tema claro de Bootstrap.
+   - Monitor y desfibrilador: data-bs-theme="dark" (hardware clinico oscuro).
+   ===================================================================== */
+:root,[data-bs-theme="light"]{
+  --k-bg0:#f8f9fa; --k-bg1:#ffffff; --k-bg2:#e9ecef; --k-bg3:#dee2e6;
+  --k-line:#dee2e6; --k-line2:#e9ecef;
+  --k-t1:#212529; --k-t2:#343a40; --k-t3:#495057; --k-t4:#5c636a; --k-t5:#6c757d; --k-t6:#adb5bd; --k-ink:#212529;
+  --k-success-t:#146c43; --k-success-th:#0f5132; --k-success-s:#d1e7dd; --k-success-b:#a3cfbb; --k-success-solid:#198754;
+  --k-danger-t:#b02a37;  --k-danger-th:#842029;  --k-danger-s:#f8d7da;  --k-danger-b:#f1aeb5;  --k-danger-solid:#dc3545;
+  --k-info-t:#087990;    --k-info-th:#055160;    --k-info-s:#cff4fc;    --k-info-b:#9eeaf9;    --k-info-solid:#0dcaf0;
+  --k-warning-t:#997404; --k-warning-th:#664d03; --k-warning-s:#fff3cd; --k-warning-b:#ffe69c; --k-warning-solid:#ffc107;
+  --k-primary-t:#0a58ca; --k-primary-th:#084298; --k-primary-s:#cfe2ff; --k-primary-b:#9ec5fe; --k-primary-solid:#0d6efd;
+  --k-indigo-t:#520dc2;  --k-indigo-th:#3d0a91;  --k-indigo-s:#e0cffc;  --k-indigo-b:#c29ffa;  --k-indigo-solid:#6610f0;
+  --k-orange-t:#ca6510;
+}
+[data-bs-theme="dark"]{
+  --k-bg0:#121417; --k-bg1:#212529; --k-bg2:#2b3035; --k-bg3:#343a40;
+  --k-line:#343a40; --k-line2:#2b3035;
+  --k-t1:#f8f9fa; --k-t2:#e9ecef; --k-t3:#ced4da; --k-t4:#adb5bd; --k-t5:#868e96; --k-t6:#6c757d; --k-ink:#212529;
+  --k-success-t:#75b798; --k-success-th:#a3cfbb; --k-success-s:#0f2e21; --k-success-b:#0f5132; --k-success-solid:#198754;
+  --k-danger-t:#ea868f;  --k-danger-th:#f1aeb5;  --k-danger-s:#3a1015;  --k-danger-b:#842029;  --k-danger-solid:#dc3545;
+  --k-info-t:#6edff6;    --k-info-th:#9eeaf9;    --k-info-s:#06323d;    --k-info-b:#087990;    --k-info-solid:#0dcaf0;
+  --k-warning-t:#ffda6a; --k-warning-th:#ffe69c; --k-warning-s:#3d2f03; --k-warning-b:#997404; --k-warning-solid:#ffc107;
+  --k-primary-t:#6ea8fe; --k-primary-th:#9ec5fe; --k-primary-s:#0a2250; --k-primary-b:#084298; --k-primary-solid:#0d6efd;
+  --k-indigo-t:#a370f7;  --k-indigo-th:#c29ffa;  --k-indigo-s:#1d0b3a;  --k-indigo-b:#3d0a91;  --k-indigo-solid:#6610f0;
+  --k-orange-t:#fd9843;
+}
+#monitor-frame{color:var(--k-t1);}
+#defib-module{color:var(--k-ink);}
+
+/* ===== Utilidades estructurales (layout, espaciado, tipografia) ===== */
+/* ===== Capa de compatibilidad de utilidades (tema claro) ===== */
+.-translate-y-1\/2{transform:translateY(-50%);}
+.absolute{position:absolute;}
+.animate-ping{animation:tw-ping 1s cubic-bezier(0,0,.2,1) infinite;}
+.animate-pulse{animation:tw-pulse 2s cubic-bezier(.4,0,.6,1) infinite;}
+.appearance-none{appearance:none;-webkit-appearance:none;}
+.backdrop-blur-md{backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);}
+.bg-gradient-to-r{background-image:linear-gradient(to right, var(--tw-grad-from), var(--tw-grad-via, var(--tw-grad-to)), var(--tw-grad-to));}
+.bg-transparent{background-color:transparent;}
+.block{display:block;}
+.border{border-width:1px;border-style:solid;}
+.border-2{border-width:2px;border-style:solid;}
+.border-4{border-width:4px;border-style:solid;}
+.border-b{border-bottom-width:1px;border-bottom-style:solid;}
+.border-l{border-left-width:1px;border-left-style:solid;}
+.border-r{border-right-width:1px;border-right-style:solid;}
+.border-t{border-top-width:1px;border-top-style:solid;}
+.bottom-full{bottom:100%;}
+.cursor-help{cursor:help;}
+.cursor-not-allowed{cursor:not-allowed;}
+.cursor-pointer{cursor:pointer;}
+.duration-100{transition-duration:100ms;}
+.duration-200{transition-duration:200ms;}
+.duration-300{transition-duration:300ms;}
+.fixed{position:fixed;}
+.flex{display:flex;}
+.flex-1{flex:1 1 0%;}
+.flex-col{flex-direction:column;}
+.flex-wrap{flex-wrap:wrap;}
+.font-bold{font-weight:700;}
+.font-semibold{font-weight:600;}
+.gap-1{gap:0.25rem;}
+.gap-1\.5{gap:0.375rem;}
+.gap-2{gap:0.5rem;}
+.gap-2\.5{gap:0.625rem;}
+.gap-3{gap:0.75rem;}
+.gap-3\.5{gap:0.875rem;}
+.gap-4{gap:1rem;}
+.gap-5{gap:1.25rem;}
+.gap-6{gap:1.5rem;}
+.grid{display:grid;}
+.grid-cols-1{grid-template-columns:repeat(1, minmax(0,1fr));}
+.grid-cols-2{grid-template-columns:repeat(2, minmax(0,1fr));}
+.group{}
+.grow{flex-grow:1;}
+.h-1\.5{height:0.375rem;}
+.h-11{height:2.75rem;}
+.h-16{height:4rem;}
+.h-3\.5{height:0.875rem;}
+.h-4{height:1rem;}
+.h-8{height:2rem;}
+.h-\[110px\]{height:110px;}
+.h-\[460px\]{height:460px;}
+.h-full{height:100%;}
+.hidden{display:none !important;}
+.inline-flex{display:inline-flex;}
+.inset-0{top:0;right:0;bottom:0;left:0;}
+.italic{font-style:italic;}
+.items-baseline{align-items:baseline;}
+.items-center{align-items:center;}
+.items-end{align-items:flex-end;}
+.items-start{align-items:flex-start;}
+.justify-between{justify-content:space-between;}
+.justify-center{justify-content:center;}
+.justify-end{justify-content:flex-end;}
+.justify-stretch{justify-content:stretch;}
+.leading-none{line-height:1;}
+.leading-relaxed{line-height:1.625;}
+.left-3{left:0.75rem;}
+.max-h-\[760px\]{max-height:760px;}
+.max-h-\[90vh\]{max-height:90vh;}
+.max-w-7xl{max-width:80rem;}
+.max-w-lg{max-width:32rem;}
+.mb-1{margin-bottom:0.25rem;}
+.mb-1\.5{margin-bottom:0.375rem;}
+.mb-2{margin-bottom:0.5rem;}
+.mb-3{margin-bottom:0.75rem;}
+.mb-4{margin-bottom:1rem;}
+.mb-6{margin-bottom:1.5rem;}
+.min-h-\[460px\]{min-height:460px;}
+.min-h-\[80px\]{min-height:80px;}
+.min-h-screen{min-height:100vh;}
+.mt-0\.5{margin-top:0.125rem;}
+.mt-1{margin-top:0.25rem;}
+.mt-2{margin-top:0.5rem;}
+.mt-3{margin-top:0.75rem;}
+.mx-auto{margin-left:auto;margin-right:auto;}
+.normal-case{text-transform:none;}
+.opacity-0{opacity:0.0;}
+.opacity-50{opacity:0.5;}
+.opacity-75{opacity:0.75;}
+.outline-none{outline:none;}
+.overflow-hidden{overflow:hidden;}
+.overflow-x-hidden{overflow-x:hidden;}
+.overflow-y-auto{overflow-y:auto;}
+.p-1{padding:0.25rem;}
+.p-2\.5{padding:0.625rem;}
+.p-3{padding:0.75rem;}
+.p-3\.5{padding:0.875rem;}
+.p-4{padding:1rem;}
+.p-5{padding:1.25rem;}
+.p-6{padding:1.5rem;}
+.pb-2{padding-bottom:0.5rem;}
+.pb-2\.5{padding-bottom:0.625rem;}
+.pb-3{padding-bottom:0.75rem;}
+.pl-2{padding-left:0.5rem;}
+.pointer-events-none{pointer-events:none;}
+.pr-1{padding-right:0.25rem;}
+.pt-2{padding-top:0.5rem;}
+.pt-3{padding-top:0.75rem;}
+.pt-4{padding-top:1rem;}
+.pt-5{padding-top:1.25rem;}
+.px-1\.5{padding-left:0.375rem;padding-right:0.375rem;}
+.px-2{padding-left:0.5rem;padding-right:0.5rem;}
+.px-2\.5{padding-left:0.625rem;padding-right:0.625rem;}
+.px-3{padding-left:0.75rem;padding-right:0.75rem;}
+.px-4{padding-left:1rem;padding-right:1rem;}
+.px-5{padding-left:1.25rem;padding-right:1.25rem;}
+.py-0\.5{padding-top:0.125rem;padding-bottom:0.125rem;}
+.py-1{padding-top:0.25rem;padding-bottom:0.25rem;}
+.py-2{padding-top:0.5rem;padding-bottom:0.5rem;}
+.py-2\.5{padding-top:0.625rem;padding-bottom:0.625rem;}
+.py-3{padding-top:0.75rem;padding-bottom:0.75rem;}
+.py-4{padding-top:1rem;padding-bottom:1rem;}
+.relative{position:relative;}
+.right-0{right:0;}
+.right-3{right:0.75rem;}
+.rounded{border-radius:0.25rem;}
+.rounded-2xl{border-radius:1rem;}
+.rounded-full{border-radius:9999px;}
+.rounded-lg{border-radius:0.5rem;}
+.rounded-xl{border-radius:0.75rem;}
+.self-start{align-self:flex-start;}
+.shadow-2xl{box-shadow:0 25px 50px -12px rgba(30,41,59,0.15);}
+.shadow-lg{box-shadow:0 10px 15px -3px rgba(30,41,59,0.08),0 4px 6px -4px rgba(30,41,59,0.06);}
+.shadow-xl{box-shadow:0 20px 25px -5px rgba(30,41,59,0.10),0 8px 10px -6px rgba(30,41,59,0.06);}
+.text-2xl{font-size:1.5rem;}
+.text-3xl{font-size:1.875rem;}
+.text-4xl{font-size:2.25rem;}
+.text-\[10px\]{font-size:10px;}
+.text-\[11px\]{font-size:11px;}
+.text-\[8px\]{font-size:8px;}
+.text-\[9px\]{font-size:9px;}
+.text-base{font-size:1rem;}
+.text-center{text-align:center;}
+.text-left{text-align:left;}
+.text-lg{font-size:1.125rem;}
+.text-right{text-align:right;}
+.text-sm{font-size:0.875rem;}
+.text-xl{font-size:1.25rem;}
+.text-xs{font-size:0.75rem;}
+.top-1\/2{top:50%;}
+.top-2{top:0.5rem;}
+.top-\[160px\]{top:160px;}
+.top-\[310px\]{top:310px;}
+.tracking-tight{letter-spacing:-0.025em;}
+.tracking-wider{letter-spacing:0.05em;}
+.tracking-widest{letter-spacing:0.1em;}
+.transition-all{transition-property:all;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:150ms;}
+.transition-colors{transition-property:color,background-color,border-color;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:150ms;}
+.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:150ms;}
+.transition-transform{transition-property:transform;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:150ms;}
+.uppercase{text-transform:uppercase;}
+.w-0{width:0;}
+.w-11{width:2.75rem;}
+.w-3\.5{width:0.875rem;}
+.w-4{width:1rem;}
+.w-64{width:16rem;}
+.w-8{width:2rem;}
+.w-80{width:20rem;}
+.w-full{width:100%;}
+.z-10{z-index:10;}
+.z-30{z-index:30;}
+.z-50{z-index:50;}
+/* ===== Variantes responsivas ===== */
+@media (min-width: 768px) {
+  .md\:col-span-3{grid-column:span 3 / span 3;}
+  .md\:col-span-4{grid-column:span 4 / span 4;}
+  .md\:col-span-5{grid-column:span 5 / span 5;}
+  .md\:col-span-9{grid-column:span 9 / span 9;}
+  .md\:flex-row{flex-direction:row;}
+  .md\:grid-cols-12{grid-template-columns:repeat(12, minmax(0,1fr));}
+  .md\:grid-cols-5{grid-template-columns:repeat(5, minmax(0,1fr));}
+  .md\:items-center{align-items:center;}
+  .md\:left-0{left:0;}
+  .md\:p-6{padding:1.5rem;}
+  .md\:right-auto{right:auto;}
+  .md\:text-2xl{font-size:1.5rem;}
+}
+@media (min-width: 1024px) {
+  .lg\:col-span-12{grid-column:span 12 / span 12;}
+  .lg\:col-span-4{grid-column:span 4 / span 4;}
+  .lg\:col-span-8{grid-column:span 8 / span 8;}
+  .lg\:grid-cols-12{grid-template-columns:repeat(12, minmax(0,1fr));}
+}
+/* ===== Ajustes finos para componentes nativos de Bootstrap 5 (modal / offcanvas / btn) ===== */
+#sidebar-drawer.offcanvas{ --bs-offcanvas-width: 20rem; }
+#vitals-modal .modal-dialog{ --bs-modal-width: 32rem; }
+.btn{ box-shadow:none; }
+.btn:focus, .btn:focus-visible{ box-shadow:none; }
+.btn.opacity-50:disabled{ opacity:0.5; }
+.offcanvas-backdrop, .modal-backdrop{ --bs-backdrop-bg:#000; }
+/* ===== Estados hover / focus / active / group-hover ===== */
+.active\:scale-\[0\.97\]:active{transform:scale(0.97);}
+.active\:scale-\[0\.98\]:active{transform:scale(0.98);}
+.group:hover .group-hover\:opacity-100{opacity:1;}
+.group:hover .group-hover\:scale-105{transform:scale(1.05);}
+
+/* ===== Botones: sin el estilo de .btn de Bootstrap (evita perder color en hover/active) ===== */
+button{cursor:pointer;}
+button:disabled{cursor:not-allowed;}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--k-primary-solid);outline-offset:2px;}
+input[type=range]:focus-visible{outline-offset:4px;}
+
+/* ===== Iconos Flaticon UIcons ===== */
+i.fi,i[class*="fi-rr-"]{display:inline-flex;align-items:center;justify-content:center;line-height:1;flex-shrink:0;}
+
+/* ===== Utilidades que faltaban en la capa de compatibilidad ===== */
+@keyframes tw-ping{75%,100%{transform:scale(2);opacity:0;}}
+@keyframes tw-pulse{50%{opacity:.5;}}
+@keyframes tw-bounce{0%,100%{transform:translateY(-25%);animation-timing-function:cubic-bezier(.8,0,1,1);}50%{transform:none;animation-timing-function:cubic-bezier(0,0,.2,1);}}
+.animate-bounce{animation:tw-bounce 1s infinite;}
+.left-0{left:0;}
+.max-w-tip{max-width:calc(100vw - 2rem);}
+.border,.border-2,.border-4,.border-b,.border-t,.border-l,.border-r{border-color:var(--k-line);}
+
+/* ===== Utilidades de color (paleta Bootstrap 5) ===== */
+.accent-amber-500{accent-color:var(--k-warning-solid)}
+.accent-emerald-500{accent-color:var(--k-success-solid)}
+.accent-sky-500{accent-color:var(--k-primary-solid)}
+.bg-amber-400{background-color:color-mix(in srgb,var(--k-warning-solid) 65%,#fff)}
+.bg-amber-950\/80{background-color:color-mix(in srgb,var(--k-warning-s) 80%,transparent)}
+.bg-black{background-color:rgba(0,0,0,1)}
+.bg-emerald-400{background-color:color-mix(in srgb,var(--k-success-solid) 65%,#fff)}
+.bg-emerald-500{background-color:var(--k-success-solid)}
+.bg-emerald-600{background-color:var(--k-success-solid)}
+.bg-emerald-950{background-color:var(--k-success-s)}
+.bg-emerald-950\/20{background-color:color-mix(in srgb,var(--k-success-s) 45%,transparent)}
+.bg-emerald-950\/60{background-color:color-mix(in srgb,var(--k-success-s) 85%,transparent)}
+.bg-red-600{background-color:var(--k-danger-solid)}
+.bg-red-950{background-color:var(--k-danger-s)}
+.bg-red-950\/80{background-color:color-mix(in srgb,var(--k-danger-s) 80%,transparent)}
+.bg-rose-950{background-color:var(--k-danger-s)}
+.bg-rose-950\/20{background-color:color-mix(in srgb,var(--k-danger-s) 45%,transparent)}
+.bg-sky-950{background-color:var(--k-primary-s)}
+.bg-slate-800{background-color:var(--k-bg3)}
+.bg-slate-850{background-color:var(--k-bg2)}
+.bg-slate-900{background-color:var(--k-bg1)}
+.bg-slate-900\/60{background-color:color-mix(in srgb,var(--k-bg1) 60%,transparent)}
+.bg-slate-900\/95{background-color:color-mix(in srgb,var(--k-bg1) 95%,transparent)}
+.bg-slate-950{background-color:var(--k-bg0)}
+.bg-slate-950\/40{background-color:color-mix(in srgb,var(--k-bg0) 40%,transparent)}
+.bg-slate-950\/60{background-color:color-mix(in srgb,var(--k-bg0) 60%,transparent)}
+.bg-slate-950\/80{background-color:color-mix(in srgb,var(--k-bg0) 80%,transparent)}
+.bg-slate-950\/90{background-color:color-mix(in srgb,var(--k-bg0) 90%,transparent)}
+.border-amber-500\/20{border-color:color-mix(in srgb,var(--k-warning-solid) 20%,transparent)}
+.border-amber-500\/30{border-color:color-mix(in srgb,var(--k-warning-solid) 30%,transparent)}
+.border-amber-500\/35{border-color:color-mix(in srgb,var(--k-warning-solid) 35%,transparent)}
+.border-amber-600{border-color:#cc9a06}
+.border-amber-600\/60{border-color:rgba(184,134,11,.55)}
+.border-amber-800{border-color:var(--k-warning-b)}
+.border-cyan-500\/30{border-color:color-mix(in srgb,var(--k-info-solid) 30%,transparent)}
+.border-emerald-500{border-color:var(--k-success-solid)}
+.border-emerald-500\/30{border-color:color-mix(in srgb,var(--k-success-solid) 30%,transparent)}
+.border-emerald-500\/40{border-color:color-mix(in srgb,var(--k-success-solid) 40%,transparent)}
+.border-emerald-800{border-color:var(--k-success-b)}
+.border-emerald-800\/40{border-color:color-mix(in srgb,var(--k-success-b) 40%,transparent)}
+.border-emerald-900{border-color:var(--k-success-b)}
+.border-red-800{border-color:var(--k-danger-b)}
+.border-rose-500\/30{border-color:color-mix(in srgb,var(--k-danger-solid) 30%,transparent)}
+.border-rose-800{border-color:var(--k-danger-b)}
+.border-rose-800\/40{border-color:color-mix(in srgb,var(--k-danger-b) 40%,transparent)}
+.border-sky-850{border-color:var(--k-primary-b)}
+.border-slate-700{border-color:var(--k-line)}
+.border-slate-800{border-color:var(--k-line)}
+.border-slate-800\/40{border-color:color-mix(in srgb,var(--k-line) 40%,transparent)}
+.border-slate-800\/60{border-color:color-mix(in srgb,var(--k-line) 60%,transparent)}
+.border-slate-800\/80{border-color:color-mix(in srgb,var(--k-line) 80%,transparent)}
+.border-slate-850{border-color:var(--k-line2)}
+.border-slate-900{border-color:var(--k-line2)}
+.from-amber-500{--tw-grad-from:rgba(255,193,7,1)}
+.from-amber-500\/10{--tw-grad-from:rgba(255,193,7,0.12)}
+.shadow-emerald-950\/20{box-shadow:0 10px 20px -5px rgba(25,135,84,.25)}
+.text-amber-200{color:var(--k-warning-t)}
+.text-amber-300{color:var(--k-warning-t)}
+.text-amber-400{color:var(--k-warning-t)}
+.text-amber-500{color:var(--k-warning-t)}
+.text-amber-500\/70{color:color-mix(in srgb,var(--k-warning-t) 70%,transparent)}
+.text-cyan-400{color:var(--k-info-t)}
+.text-cyan-500{color:var(--k-info-t)}
+.text-cyan-500\/70{color:color-mix(in srgb,var(--k-info-t) 70%,transparent)}
+.text-emerald-400{color:var(--k-success-t)}
+.text-emerald-500{color:var(--k-success-t)}
+.text-emerald-500\/70{color:color-mix(in srgb,var(--k-success-t) 70%,transparent)}
+.text-indigo-400{color:var(--k-indigo-t)}
+.text-red-400{color:var(--k-danger-t)}
+.text-red-500{color:var(--k-danger-t)}
+.text-rose-300{color:var(--k-danger-t)}
+.text-rose-400{color:var(--k-danger-t)}
+.text-rose-500{color:var(--k-danger-t)}
+.text-rose-500\/70{color:color-mix(in srgb,var(--k-danger-t) 70%,transparent)}
+.text-sky-400{color:var(--k-primary-t)}
+.text-sky-500{color:var(--k-primary-t)}
+.text-slate-100{color:var(--k-t1)}
+.text-slate-200{color:var(--k-t2)}
+.text-slate-300{color:var(--k-t3)}
+.text-slate-400{color:var(--k-t4)}
+.text-slate-500{color:var(--k-t5)}
+.text-slate-600{color:var(--k-t6)}
+.text-slate-950{color:var(--k-ink)}
+.text-white{color:#fff}
+.to-amber-500{--tw-grad-to:rgba(255,193,7,1)}
+.to-orange-500\/10{--tw-grad-to:rgba(253,126,20,0.12)}
+.via-amber-400{--tw-grad-via:rgba(255,202,44,1)}
+.bg-black\/40{background-color:rgba(0,0,0,0.4)}
+.bg-black\/60{background-color:rgba(0,0,0,0.6)}
+.bg-black\/70{background-color:rgba(0,0,0,0.7)}
+.text-rose-600{color:var(--k-danger-t)}
+.text-orange-400{color:var(--k-orange-t)}
+.text-emerald-300{color:var(--k-success-t)}
+/* hover */
+.hover\:bg-emerald-500:hover{background-color:#157347}
+.hover\:bg-emerald-900:hover{background-color:var(--k-success-b)}
+.hover\:bg-red-500:hover:not(:disabled){background-color:#bb2d3b}
+.hover\:bg-sky-900:hover{background-color:var(--k-primary-b)}
+.hover\:bg-slate-800:hover{background-color:var(--k-bg3)}
+.hover\:bg-slate-850:hover{background-color:var(--k-bg2)}
+.hover\:border-amber-500\/40:hover{border-color:var(--k-warning-b)}
+.hover\:border-cyan-500\/40:hover{border-color:var(--k-info-b)}
+.hover\:border-emerald-500\/40:hover{border-color:var(--k-success-b)}
+.hover\:border-indigo-500\/40:hover{border-color:var(--k-indigo-b)}
+.hover\:border-red-500\/40:hover{border-color:var(--k-danger-b)}
+.hover\:border-sky-500:hover{border-color:var(--k-primary-solid)}
+.hover\:from-amber-500\/20:hover{--tw-grad-from:rgba(255,193,7,0.4)}
+.hover\:text-amber-400:hover{color:var(--k-warning-th)}
+.hover\:text-cyan-400:hover{color:var(--k-info-th)}
+.hover\:text-emerald-300:hover{color:var(--k-success-th)}
+.hover\:text-emerald-400:hover{color:var(--k-success-th)}
+.hover\:text-rose-300:hover{color:var(--k-danger-th)}
+.hover\:text-rose-400:hover{color:var(--k-danger-th)}
+.hover\:text-white:hover{color:var(--k-t1)}
+.hover\:to-orange-500\/20:hover{--tw-grad-to:rgba(253,126,20,0.24)}
+/* focus */
+.focus\:border-amber-500:focus{border-color:var(--k-warning-solid)}
+.focus\:border-cyan-500:focus{border-color:var(--k-info-solid)}
+.focus\:border-emerald-500:focus{border-color:var(--k-success-solid)}
+.focus\:border-rose-500:focus{border-color:var(--k-danger-solid)}
+
+/* ===== Ajustes para componentes nativos de Bootstrap 5 (modal / offcanvas) ===== */
+#sidebar-drawer.offcanvas{ --bs-offcanvas-width: 20rem; --bs-offcanvas-bg: var(--k-bg1); --bs-offcanvas-color: var(--k-t1); }
+#vitals-modal .modal-dialog{ --bs-modal-width: 32rem; }
+#vitals-modal .modal-content{ --bs-modal-bg: var(--k-bg1); --bs-modal-color: var(--k-t1); }
+.offcanvas-backdrop, .modal-backdrop{ --bs-backdrop-bg:#000; }
+
+
+/* ===== Biblioteca de ritmos: estado seleccionado (antes no tenia estilo) ===== */
+.btn-rhythm{cursor:pointer;}
+.btn-rhythm:hover{border-color:var(--k-primary-b);}
+.btn-rhythm.active{background-color:var(--k-primary-s);border-color:var(--k-primary-solid);box-shadow:inset 4px 0 0 var(--k-primary-solid);}
+.btn-rhythm.active .text-slate-100{color:var(--k-primary-th);}
+
+/* ===== Pantalla del ECG: iconos dentro del frame oscuro ===== */
+.tooltip-card{box-shadow:0 .5rem 1rem rgba(0,0,0,.35);}
+
+@media (prefers-reduced-motion: reduce){
+  .animate-ping,.animate-pulse,.animate-bounce,.cpr-metronome-active,.animate-fadeIn{animation:none !important;}
+  .critical-flashing{animation:none !important;background-color:var(--k-danger-s);border-color:var(--k-danger-solid);}
+}
+
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-3 md:p-6 relative overflow-x-hidden">
+
+    <!-- SOBRECAPA DE FONDO OSCURO PARA EL DRAWER -->
+    <!-- SOBRECAPA DE DESTELLO DE CHOQUE -->
+    <div id="shock-flash" class="fixed inset-0 z-50 pointer-events-none bg-transparent"></div>
+
+    <!-- DIALOG / MODAL DE INGRESO DE SIGNOS VITALES PERSONALIZADOS (Bootstrap Modal) -->
+    <div id="vitals-modal" class="modal fade" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered w-full max-w-lg">
+        <div class="modal-content bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl flex flex-col gap-5 max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2 text-emerald-400">
+                    <i class="fi fi-rr-settings-sliders text-xl"></i>
+                    <h3 class="text-sm font-bold uppercase tracking-wider text-slate-200">Personalizar Fisiología del Paciente</h3>
+                </div>
+                <button onclick="toggleVitalsModal(false)" class="text-slate-400 hover:text-white transition-colors" data-bs-dismiss="modal">
+                    <i class="fi fi-rr-cross-small text-xl"></i>
+                </button>
+            </div>
+
+            <!-- Formulario de Signos Vitales -->
+            <div class="grid grid-cols-2 gap-4">
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Frecuencia Cardiaca (FC)</label>
+                    <div class="relative">
+                        <input type="number" id="modal-fc" min="0" max="250" value="72" oninput="validateVitalsModal(this.value)" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm font-mono-clinical outline-none focus:border-emerald-500 text-emerald-400">
+                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-slate-500 font-bold uppercase font-mono-clinical">LPM</span>
+                    </div>
+                    <!-- Alerta de validación en tiempo real -->
+                    <span id="fc-validation-badge" class="text-[9px] font-bold px-2 py-0.5 rounded self-start mt-0.5">Normal</span>
+                </div>
+
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Saturación Oxígeno (SpO2)</label>
+                    <div class="relative">
+                        <input type="number" id="modal-spo2" min="0" max="100" value="98" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm font-mono-clinical outline-none focus:border-cyan-500 text-cyan-400">
+                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-slate-500 font-bold uppercase font-mono-clinical">%</span>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono-clinical">Presión Sistólica (Sist)</label>
+                    <div class="relative">
+                        <input type="number" id="modal-sys" min="0" max="250" value="120" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm font-mono-clinical outline-none focus:border-rose-500 text-rose-400">
+                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-slate-500 font-bold uppercase font-mono-clinical">mmHg</span>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Presión Diastólica (Diast)</label>
+                    <div class="relative">
+                        <input type="number" id="modal-dia" min="0" max="180" value="80" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm font-mono-clinical outline-none focus:border-rose-500 text-rose-400">
+                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-slate-500 font-bold uppercase font-mono-clinical">mmHg</span>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Capnografía (ETCO2)</label>
+                    <div class="relative">
+                        <input type="number" id="modal-etco2" min="0" max="100" value="38" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm font-mono-clinical outline-none focus:border-amber-500 text-amber-400">
+                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-slate-500 font-bold uppercase font-mono-clinical">mmHg</span>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Frecuencia Resp. (FR)</label>
+                    <div class="relative">
+                        <input type="number" id="modal-fr" min="0" max="60" value="16" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm font-mono-clinical outline-none focus:border-amber-500 text-amber-400">
+                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-slate-500 font-bold uppercase font-mono-clinical">RPM</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Selección de Base de Ritmo -->
+            <div class="flex flex-col gap-2 border-t border-slate-800/60 pt-4">
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Morfología de Ritmo de Base</label>
+                <div class="relative">
+                    <select id="modal-rhythm-select" class="w-full bg-slate-950 text-sky-400 border border-slate-800 rounded-xl px-3 py-2 font-mono-clinical text-xs outline-none cursor-pointer appearance-none">
+                        <!-- Llenado dinámico -->
+                    </select>
+                    <div class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                        <i class="fi fi-rr-angle-small-down text-xs"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Botones de Acción -->
+            <div class="flex gap-3 justify-end border-t border-slate-800 pt-4">
+                <button onclick="toggleVitalsModal(false)" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-850 hover:bg-slate-800 transition-colors"><i class="fi fi-rr-cross-small"></i> Cancelar</button>
+                <button onclick="applyCustomVitals()" class="px-5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors flex items-center gap-1.5 shadow-lg shadow-emerald-950/20">
+                    <i class="fi fi-rr-check-circle"></i> Aplicar Fisiología
+                </button>
+            </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DRAWER LATERAL DE CONFIGURACIONES (Estilo Android) -->
+    <aside id="sidebar-drawer" tabindex="-1" class="offcanvas offcanvas-start w-80 bg-slate-900 border-r border-slate-800 p-5 overflow-y-auto custom-scrollbar flex flex-col justify-between">
+        <div class="flex flex-col gap-6">
+            <!-- Cabecera del Drawer -->
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2">
+                    <i class="fi fi-rr-settings text-sky-400 text-lg"></i>
+                    <span class="text-sm font-bold uppercase tracking-wider text-slate-200">Ajustes del Monitor</span>
+                </div>
+                <button onclick="closeDrawer()" class="text-slate-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-slate-800">
+                    <i class="fi fi-rr-cross-small text-xl"></i>
+                </button>
+            </div>
+
+            <!-- CONFIGURACIÓN DE DESFIBRILACIÓN -->
+            <div class="flex flex-col gap-2">
+                <label class="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider"><i class="fi fi-rr-bolt text-xs"></i>Módulo de Reanimación</label>
+                <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800 flex flex-col gap-2.5">
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="text-slate-400">Conectar parches / palas</span>
+                        <input type="checkbox" id="check-defib" onchange="toggleDefibModule(this.checked)" class="w-4 h-4 rounded text-amber-500 accent-amber-500 bg-slate-800 border-slate-700 cursor-pointer">
+                    </div>
+                    <div class="flex justify-between items-center text-xs border-t border-slate-900 pt-2">
+                        <span class="text-slate-400">Metrónomo RCP (110 CPM)</span>
+                        <input type="checkbox" id="check-metronome" onchange="toggleMetronome(this.checked)" class="w-4 h-4 rounded text-emerald-500 accent-emerald-500 bg-slate-800 border-slate-700 cursor-pointer">
+                    </div>
+                    <div class="flex justify-between items-center text-xs border-t border-slate-900 pt-2">
+                        <span class="text-slate-400">Éxito de Choque (Revertir)</span>
+                        <input type="checkbox" id="check-shock-success" checked onchange="toggleShockSuccess(this.checked)" class="w-4 h-4 rounded text-sky-500 accent-sky-500 bg-slate-800 border-slate-700 cursor-pointer">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Derivaciones standard de 12 leads -->
+            <div class="flex flex-col gap-2">
+                <label class="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider"><i class="fi fi-rr-chart-line-up-down text-xs"></i>Derivación Principal (12 Leads)</label>
+                <div class="relative">
+                    <select id="select-lead" onchange="changeLead(this.value)" class="w-full bg-slate-950 text-sky-400 border border-slate-800 rounded-xl px-3 py-2 font-mono-clinical text-xs outline-none cursor-pointer appearance-none">
+                        <option value="I">Derivación I (Lateral alta)</option>
+                        <option value="II" selected>Derivación II (Eje principal)</option>
+                        <option value="III">Derivación III (Diafragmática)</option>
+                        <option value="aVR">Derivación aVR (Espejo/Derecha)</option>
+                        <option value="aVL">Derivación aVL (Lateral alta)</option>
+                        <option value="aVF">Derivación aVF (Inferior)</option>
+                        <option value="V1">Derivación V1 (Septal)</option>
+                        <option value="V2">Derivación V2 (Septal)</option>
+                        <option value="V3">Derivación V3 (Anterior)</option>
+                        <option value="V4">Derivación V4 (Anterior)</option>
+                        <option value="V5">Derivación V5 (Lateral baja)</option>
+                        <option value="V6">Derivación V6 (Lateral baja)</option>
+                    </select>
+                    <div class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                        <i class="fi fi-rr-angle-small-down text-xs"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Audio y volumen de QRS -->
+            <div class="flex flex-col gap-2">
+                <label class="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider"><i class="fi fi-rr-volume text-xs"></i>Audio del QRS / Sístoles</label>
+                <div class="flex flex-col gap-3 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                    <button id="btn-audio" onclick="toggleAudio()" class="w-full py-2 px-3 rounded-lg text-rose-400 hover:text-rose-300 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-rose-800/40 bg-rose-950/20">
+                        <i id="audio-icon" class="fi fi-rr-volume-mute text-base"></i> <span id="audio-text">Silenciado</span>
+                    </button>
+                    <div class="flex items-center gap-2 mt-1">
+                        <i class="fi fi-rr-volume text-slate-500"></i>
+                        <input type="range" id="volume-slider" min="0" max="100" value="30" oninput="updateVolume(this.value)" class="flex-1 accent-emerald-500 bg-slate-800 rounded-lg appearance-none h-1.5 cursor-pointer">
+                        <span id="volume-text" class="text-slate-400 font-mono-clinical text-xs w-8 text-right">30%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Interruptor de canales activos en pantalla -->
+            <div class="flex flex-col gap-2">
+                <label class="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider"><i class="fi fi-rr-apps text-xs"></i>Canales de Visualización</label>
+                <div class="flex flex-col gap-2.5 bg-slate-950/60 p-3 rounded-xl border border-slate-800 text-xs">
+                    <div class="flex justify-between items-center">
+                        <span class="text-slate-400">Canal I: Tensión Arterial (TA)</span>
+                        <button onclick="toggleChannel('ta')" id="btn-chan-ta" class="px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all">TA</button>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-slate-400">Canal II: Pletismografía (SpO2)</span>
+                        <button onclick="toggleChannel('spo2')" id="btn-chan-spo2" class="px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all">SpO2</button>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-slate-400">Canal III: Capnografía (CO2)</span>
+                        <button onclick="toggleChannel('capno')" id="btn-chan-capno" class="px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all">Capno</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tema visual del Monitor -->
+            <div class="flex flex-col gap-2">
+                <label class="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider"><i class="fi fi-rr-dark-mode text-xs"></i>Tema de Monitorización</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="setTheme('dark')" id="theme-dark" class="py-2 rounded-xl text-xs font-bold transition-all border"><i class="fi fi-rr-dark-mode me-1"></i>Fósforo Oscuro</button>
+                    <button onclick="setTheme('paper')" id="theme-paper" class="py-2 rounded-xl text-xs font-bold transition-all border"><i class="fi fi-rr-document me-1"></i>Papel Rosa</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-center pt-5 border-t border-slate-800">
+            <span class="text-[10px] text-slate-500 font-mono-clinical">Enkodo EKG Monitor by Erick Aguila v1.0</span>
+        </div>
+    </aside>
+
+    <!-- CABECERA PRINCIPAL DEL SISTEMA -->
+    <header class="max-w-7xl mx-auto mb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+        <div class="flex items-center gap-3">
+            <!-- Botón Sándwich Android -->
+            <button onclick="openDrawer()" class="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-850 active:scale-[0.97] transition-all" title="Ajustes de Monitor">
+                <i class="fi fi-rr-menu-burger text-2xl"></i>
+            </button>
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="flex h-3.5 w-3.5 relative">
+                        <span id="telemetry-beacon" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span id="telemetry-beacon-core" class="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
+                    </span>
+                    <h1 class="text-xl md:text-2xl font-bold tracking-tight text-slate-100">Simulador de EKG y Desfibrilación <span class="text-amber-400 font-mono-clinical text-sm">v1.0</span></h1>
+                </div>
+                <p class="text-slate-400 text-xs mt-0.5">Estación interactiva de reanimación, desfibrilación, farmacología y diagnóstico ACLS avanzada.</p>
+            </div>
+        </div>
+        
+        <!-- Botones de Acción de Cabecera -->
+        <div class="flex flex-wrap gap-2">
+            <!-- Pausa / Play del Trazo -->
+            <button id="btn-pause-play" onclick="togglePausePlay()" class="h-11 px-4 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs font-semibold flex items-center gap-2 transition-all">
+                <i id="pause-icon" class="fi fi-rr-pause text-base"></i> <span id="pause-text">Pausar Trazo</span>
+            </button>
+            <!-- Modificar Signos Vitales -->
+            <button onclick="toggleVitalsModal(true)" class="h-11 px-4 rounded-xl bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-800 text-emerald-400 text-xs font-semibold flex items-center gap-2 transition-all">
+                <i class="fi fi-rr-settings-sliders text-base"></i> Ingresar SV
+            </button>
+            <button id="btn-toggle-library" onclick="toggleLibrary()" class="bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-200 text-xs px-4 py-2.5 rounded-xl font-semibold flex items-center gap-2 active:scale-[0.98] transition-all">
+                <i id="btn-toggle-library-icon" class="fi fi-rr-eye-crossed text-base"></i> <span id="btn-toggle-library-text">Ocultar Biblioteca</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- CONTENEDOR PRINCIPAL: Monitor, Desfibrilador, Farmacología y Biblioteca -->
+    <main id="main-grid" class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-5 mb-6">
+        
+        <!-- MONITOR MULTI-PARAMÉTRICO (Columna Izquierda / Ampliada) -->
+        <div id="monitor-col" class="lg:col-span-8 flex flex-col gap-4 transition-all duration-300">
+            
+            <!-- CONSOLA DE DESFIBRILACIÓN (Sección Ocultable Dinámica) -->
+            <div id="defib-module" data-bs-theme="dark" class="hidden bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 border-4 border-amber-600 rounded-2xl p-4 shadow-2xl relative text-slate-950 animate-fadeIn transition-all">
+                <div class="flex justify-between items-center border-b border-amber-600/60 pb-2.5 mb-3">
+                    <div class="flex items-center gap-2">
+                        <i class="fi fi-rr-bolt text-xl font-bold"></i>
+                        <span class="text-sm font-bold uppercase tracking-wider">Unidad de Choque / Desfibrilador Automático & Manual</span>
+                    </div>
+                    <span id="defib-status-badge" class="bg-slate-950 text-amber-400 px-3 py-1 rounded text-xs font-mono-clinical font-bold border border-slate-900 animate-pulse">PARCHES CONECTADOS - LISTO</span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                    <!-- Energía Seleccionada (Joules) -->
+                    <div class="md:col-span-4 bg-slate-950/90 text-amber-400 p-3.5 rounded-xl border-2 border-amber-600 flex flex-col justify-center items-center h-[110px]">
+                        <span class="text-[9px] font-bold uppercase tracking-widest text-slate-400">ENERGÍA SELECCIONADA</span>
+                        <div class="flex items-center gap-4 mt-1">
+                            <button onclick="adjustJoules(-50)" class="h-8 w-8 rounded-full bg-slate-900 border border-slate-800 text-amber-400 text-sm font-bold flex items-center justify-center hover:bg-slate-800 transition-colors">-</button>
+                            <span id="defib-joules" class="text-4xl font-bold font-mono-clinical">200</span>
+                            <button onclick="adjustJoules(50)" class="h-8 w-8 rounded-full bg-slate-900 border border-slate-800 text-amber-400 text-sm font-bold flex items-center justify-center hover:bg-slate-800 transition-colors">+</button>
+                        </div>
+                        <span class="text-[10px] font-bold text-slate-500 mt-0.5">JOULES (BI-FÁSICO)</span>
+                    </div>
+
+                    <!-- Panel Central de Estado DEA / Indicaciones de Voz -->
+                    <div class="md:col-span-5 bg-slate-950 text-sky-400 p-3.5 rounded-xl border border-slate-900 h-[110px] flex flex-col justify-center text-center">
+                        <span class="text-[8px] font-bold uppercase tracking-widest text-slate-500 block mb-1">PROMPTS / INDICACIONES DEL MONITOR</span>
+                        <p id="defib-voice-prompt" class="text-xs font-bold uppercase font-mono-clinical leading-relaxed text-amber-400">Presione ANALIZAR para evaluar al paciente.</p>
+                        <!-- Indicador visual de metrónomo interno de carga -->
+                        <div id="charge-progress-bar" class="w-full bg-slate-900 h-1.5 rounded-full mt-2 overflow-hidden hidden border border-slate-800">
+                            <div id="charge-progress-fill" class="bg-amber-400 h-full w-0 transition-all duration-100"></div>
+                        </div>
+                    </div>
+
+                    <!-- Controles de Carga y Descarga -->
+                    <div class="md:col-span-3 flex flex-col gap-2.5 h-[110px] justify-between">
+                        <button id="btn-defib-analyze" onclick="analyzeRhythm()" class="w-full py-2 bg-sky-950 hover:bg-sky-900 text-sky-400 border border-sky-850 hover:border-sky-500 active:scale-[0.98] transition-all rounded-lg text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5">
+                            <i class="fi fi-rr-heart text-sm"></i> 1. ANALIZAR
+                        </button>
+                        <!-- Indicador visual de carga automatizada (no interactivo) -->
+                        <div id="charging-status-indicator" class="w-full py-2 bg-slate-900 text-slate-400 border border-slate-800 text-center rounded-lg text-xs font-bold uppercase tracking-wider hidden">
+                            Cargando...
+                        </div>
+                        <button id="btn-defib-shock" onclick="dischargeShock()" class="w-full py-4 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-1.5 active:scale-[0.97] transition-all cursor-not-allowed opacity-50" disabled>
+                            <i class="fi fi-rr-bolt text-sm"></i> 2. ¡DESCARGA!
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TABLERO PRINCIPAL DE MONITOREO -->
+            <div id="monitor-frame" data-bs-theme="dark" class="bg-slate-900 border-4 border-slate-800 rounded-2xl p-3.5 shadow-2xl relative transition-all duration-300">
+                
+                <!-- Faja Superior de Información de Canal -->
+                <div class="flex justify-between items-center border-b border-slate-800/80 pb-2.5 mb-3">
+                    <div>
+                        <div class="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Monitoreo Fisiológico Continuo - <span id="vital-name" class="text-sky-400 normal-case">Ritmo Sinusal</span></div>
+                        <div class="text-[10px] text-slate-500 font-mono-clinical mt-0.5">Derivación Principal: <span id="lead-sub-display" class="font-bold text-amber-500">DII</span> | Pletismografía | Capnografía (CO2)</div>
+                        <div class="text-[10px] text-slate-500 font-mono-clinical mt-0.5" id="live-clock">12:00:00</div>
+                    </div>
+                    <!-- Temporizador e indicador de RCP AHA -->
+                    <div class="flex items-center gap-2">
+                        <!-- Temporizador de RCP de 2 Minutos -->
+                        <div id="cpr-timer-node" class="hidden h-8 px-2 flex items-center justify-center rounded-lg bg-red-950/80 border border-red-800 text-red-400 font-bold text-xs" title="Temporizador de RCP AHA">
+                            <span class="font-mono-clinical text-[10px]">RCP: <span id="cpr-timer-display">02:00</span></span>
+                        </div>
+                        <div id="cpr-visual-node" class="hidden h-8 w-8 flex items-center justify-center rounded-lg bg-emerald-950 border border-emerald-800 text-emerald-400" title="Metrónomo de RCP Activo">
+                            <i class="fi fi-rr-chart-line-up-down text-sm animate-pulse"></i>
+                        </div>
+                        <div id="alarm-banner" class="hidden inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-red-950/80 border border-red-800 text-[10px] font-bold text-red-400 uppercase tracking-widest animate-pulse">
+                            <i class="fi fi-rr-bell-ring"></i> ¡Alarma de Ritmo Crítica!
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CONTENEDOR DE PANTALLA Y SIGNOS VITALES -->
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-3.5">
+                    
+                    <!-- CANALES DE ONDA (Canvas Autoresizable) -->
+                    <div id="canvas-wrapper" class="md:col-span-9 relative rounded-xl overflow-hidden bg-black border border-slate-850 flex flex-col justify-stretch min-h-[460px] h-[460px]">
+                        <!-- Canvas único de 3 canales estirado al 100% -->
+                        <canvas id="monitorCanvas" class="w-full h-full block grow"></canvas>
+                        
+                        <!-- Etiquetas flotantes de Canal -->
+                        <div id="label-ecg" class="absolute left-3 top-2 text-[9px] font-bold text-emerald-400 tracking-wider bg-black/60 px-1.5 py-0.5 rounded pointer-events-none font-mono-clinical transition-all duration-300">I - ECG (<span id="lead-label-display">II</span>) 10mm/mV</div>
+                        <div id="label-plet" class="absolute left-3 top-[160px] text-[9px] font-bold text-cyan-400 tracking-wider bg-black/60 px-1.5 py-0.5 rounded pointer-events-none font-mono-clinical transition-all duration-300">II - PLETISMOGRAFÍA (SpO2)</div>
+                        <div id="label-co2" class="absolute left-3 top-[310px] text-[9px] font-bold text-amber-400 tracking-wider bg-black/60 px-1.5 py-0.5 rounded pointer-events-none font-mono-clinical transition-all duration-300">III - CAPNOGRAFÍA (CO2) mmHg</div>
+                        <div id="custom-image-badge" class="absolute right-3 top-2 text-[9px] font-bold text-amber-400 tracking-wider bg-amber-950/80 border border-amber-800 px-2 py-0.5 rounded pointer-events-none font-mono-clinical hidden">MODO IMAGEN ACTIVO</div>
+                    </div>
+
+                    <!-- PANELES DE SIGNOS VITALES CON TOOLTIPS INFORMATIVOS -->
+                    <div class="md:col-span-3 flex flex-col justify-stretch gap-2.5 h-[460px] min-h-[460px] relative z-10">
+                        
+                        <!-- Vital 1: Frecuencia Cardiaca -->
+                        <div id="box-fc" class="group relative bg-black/40 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between flex-1 min-h-[80px] transition-all text-slate-100">
+                            <div class="flex justify-between items-center text-[10px] font-bold text-emerald-400 tracking-wider uppercase">
+                                <div class="flex items-center gap-1.5">
+                                    <span>Frecuencia (FC)</span>
+                                    <div class="cursor-help">
+                                        <i class="fi fi-rr-info text-emerald-500/70 hover:text-emerald-400 text-xs"></i>
+                                        <div class="tooltip-card absolute right-0 bottom-full mb-2 w-64 max-w-tip bg-slate-900/95 backdrop-blur-md border border-emerald-500/30 p-2.5 rounded-xl shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 z-50 text-[10px] text-slate-300 leading-relaxed font-mono-clinical">
+                                            <strong class="text-emerald-400 block mb-1">Frecuencia Cardíaca (FC)</strong>
+                                            Número de contracciones del corazón por minuto (LPM).<br>
+                                            • <strong class="text-white">Normal:</strong> 60 - 100 LPM.<br>
+                                            • <strong class="text-red-400">&gt; 100:</strong> Taquicardia (indica shock, fiebre, dolor, arritmias).<br>
+                                            • <strong class="text-sky-400">&lt; 60:</strong> Bradicardia (fisiológica en deportistas o disfunción del nodo).
+                                        </div>
+                                    </div>
+                                </div>
+                                <i class="fi fi-rr-heart text-emerald-500 text-sm animate-pulse"></i>
+                            </div>
+                            <div class="flex items-baseline justify-end gap-1">
+                                <span id="v-bpm" class="text-4xl font-bold font-mono-clinical text-emerald-400 leading-none">72</span>
+                                <span class="text-xs text-emerald-500 font-bold">LPM</span>
+                            </div>
+                        </div>
+
+                        <!-- Vital 2: Presión Arterial (TA y PAM) -->
+                        <div id="box-ta" class="group relative bg-black/40 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between flex-1 min-h-[80px] transition-all text-slate-100">
+                            <div class="flex justify-between items-center text-[10px] font-bold text-rose-400 tracking-wider uppercase">
+                                <div class="flex items-center gap-1.5">
+                                    <span>Presión (TA)</span>
+                                    <div class="cursor-help">
+                                        <i class="fi fi-rr-info text-rose-500/70 hover:text-rose-400 text-xs"></i>
+                                        <div class="tooltip-card absolute right-0 bottom-full mb-2 w-64 max-w-tip bg-slate-900/95 backdrop-blur-md border border-rose-500/30 p-2.5 rounded-xl shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 z-50 text-[10px] text-slate-300 leading-relaxed font-mono-clinical">
+                                            <strong class="text-rose-400 block mb-1">Presión Arterial & PAM</strong>
+                                            Presión Sistólica/Diastólica en las arterias sistémicas.<br>
+                                            • <strong class="text-white">Normal:</strong> 120/80 mmHg.<br>
+                                            • <strong class="text-rose-300 font-bold">PAM (Presión Arterial Media):</strong> Refleja la presión media de perfusión a órganos. Meta: <strong class="text-emerald-400">&ge; 65 mmHg</strong>.
+                                        </div>
+                                    </div>
+                                </div>
+                                <i class="fi fi-rr-tint text-rose-500 text-sm"></i>
+                            </div>
+                            <div class="flex flex-col items-end">
+                                <div class="flex items-baseline gap-1">
+                                    <span id="v-bp" class="text-3xl font-bold font-mono-clinical text-rose-400 leading-none">120/80</span>
+                                    <span class="text-[10px] text-rose-500 font-bold">mmHg</span>
+                                </div>
+                                <div class="text-[10px] font-mono-clinical text-slate-400 mt-1">
+                                    PAM: <span id="v-map" class="font-bold text-rose-300">93</span> mmHg
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Vital 3: Saturación de Oxígeno (SpO2) -->
+                        <div id="box-spo2" class="group relative bg-black/40 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between flex-1 min-h-[80px] transition-all text-slate-100">
+                            <div class="flex justify-between items-center text-[10px] font-bold text-cyan-400 tracking-wider uppercase">
+                                <div class="flex items-center gap-1.5">
+                                    <span>Saturación (SpO2)</span>
+                                    <div class="cursor-help">
+                                        <i class="fi fi-rr-info text-cyan-500/70 hover:text-cyan-400 text-xs"></i>
+                                        <div class="tooltip-card absolute right-0 bottom-full mb-2 w-64 max-w-tip bg-slate-900/95 backdrop-blur-md border border-cyan-500/30 p-2.5 rounded-xl shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 z-50 text-[10px] text-slate-300 leading-relaxed font-mono-clinical">
+                                            <strong class="text-cyan-400 block mb-1">Saturación de Oxígeno (SpO2)</strong>
+                                            Porcentaje de hemoglobina unida al oxígeno en sangre arterial.<br>
+                                            • <strong class="text-white">Normal:</strong> 95% - 100%.<br>
+                                            • <strong class="text-red-400">Hipoxia severa (&lt;90%):</strong> Demanda oxigenoterapia, ventilación no invasiva o intubación inmediata.
+                                        </div>
+                                    </div>
+                                </div>
+                                <i class="fi fi-rr-chart-line-up-down text-cyan-500 text-sm"></i>
+                            </div>
+                            <div class="flex items-baseline justify-end gap-1">
+                                <span id="v-spo2" class="text-4xl font-bold font-mono-clinical text-cyan-400 leading-none">98</span>
+                                <span class="text-xs text-cyan-500 font-bold">%</span>
+                            </div>
+                        </div>
+
+                        <!-- Vital 4: Dióxido de Carbono (ETCO2) -->
+                        <div id="box-etco2" class="group relative bg-black/40 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between flex-1 min-h-[80px] transition-all text-slate-100">
+                            <div class="flex justify-between items-center text-[10px] font-bold text-amber-400 tracking-wider uppercase">
+                                <div class="flex items-center gap-1.5">
+                                    <span>Capno (ETCO2)</span>
+                                    <div class="cursor-help">
+                                        <i class="fi fi-rr-info text-amber-500/70 hover:text-amber-400 text-xs"></i>
+                                        <div class="tooltip-card absolute right-0 bottom-full mb-2 w-64 max-w-tip bg-slate-900/95 backdrop-blur-md border border-amber-500/30 p-2.5 rounded-xl shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 z-50 text-[10px] text-slate-300 leading-relaxed font-mono-clinical">
+                                            <strong class="text-amber-400 block mb-1">Capnografía (ETCO2)</strong>
+                                            Medición del CO2 exhalado al final de la espiración.<br>
+                                            • <strong class="text-white">Normal:</strong> 35 - 45 mmHg.<br>
+                                            • <strong class="text-amber-400">En RCP de Alta Calidad:</strong> Monitorea eficacia de compresiones (meta <strong class="text-white">&gt; 10-20 mmHg</strong>).<br>
+                                            • <strong class="text-emerald-400">ROSC (Retorno de Pulso):</strong> Un salto abrupto a <strong class="text-white">&gt;35-40 mmHg</strong> indica el retorno de actividad circulatoria.
+                                        </div>
+                                    </div>
+                                </div>
+                                <i class="fi fi-rr-wind text-amber-500 text-sm"></i>
+                            </div>
+                            <div class="flex items-baseline justify-end gap-1">
+                                <span id="v-etco2" class="text-4xl font-bold font-mono-clinical text-amber-400 leading-none">38</span>
+                                <span class="text-xs text-amber-500 font-bold">mmHg</span>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+            
+            <!-- MODULO DE FARMACOLOGÍA CLINICA AVANZADA (AHA / ACLS) -->
+            <div class="bg-slate-900 border border-slate-800/80 rounded-2xl p-4 flex flex-col gap-3 shadow-xl">
+                <div class="flex justify-between items-center border-b border-slate-800/60 pb-2">
+                    <h3 class="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase tracking-wider">
+                        <i class="fi fi-rr-doctor-bag text-emerald-400 text-base"></i> Farmacia de Emergencia Cardiovascular
+                    </h3>
+                    <span class="text-[9px] bg-slate-950 text-slate-400 px-2.5 py-0.5 rounded border border-slate-800 font-mono-clinical">SOPORTE AVANZADO</span>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-2.5">
+                    <!-- Adenosina -->
+                    <button onclick="administerDrug('adenosina')" class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-emerald-500/40 hover:bg-slate-850 flex flex-col items-center text-center gap-1 group transition-all">
+                        <i class="fi fi-rr-syringe text-sm text-emerald-400"></i>
+                        <span class="text-[11px] font-bold text-emerald-400 group-hover:scale-105 transition-transform">Adenosina</span>
+                        <span class="text-[8px] text-slate-500 font-mono-clinical">6mg / 12mg IV</span>
+                    </button>
+                    <!-- Adrenalina -->
+                    <button onclick="administerDrug('adrenalina')" class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-red-500/40 hover:bg-slate-850 flex flex-col items-center text-center gap-1 group transition-all">
+                        <i class="fi fi-rr-syringe text-sm text-rose-400"></i>
+                        <span class="text-[11px] font-bold text-rose-400 group-hover:scale-105 transition-transform">Adrenalina</span>
+                        <span class="text-[8px] text-slate-500 font-mono-clinical">1mg IV / IO</span>
+                    </button>
+                    <!-- Atropina -->
+                    <button onclick="administerDrug('atropina')" class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-cyan-500/40 hover:bg-slate-850 flex flex-col items-center text-center gap-1 group transition-all">
+                        <i class="fi fi-rr-syringe text-sm text-cyan-400"></i>
+                        <span class="text-[11px] font-bold text-cyan-400 group-hover:scale-105 transition-transform">Atropina</span>
+                        <span class="text-[8px] text-slate-500 font-mono-clinical">1mg bolo IV</span>
+                    </button>
+                    <!-- Amiodarona -->
+                    <button onclick="administerDrug('amiodarona')" class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-indigo-500/40 hover:bg-slate-850 flex flex-col items-center text-center gap-1 group transition-all">
+                        <i class="fi fi-rr-syringe text-sm text-indigo-400"></i>
+                        <span class="text-[11px] font-bold text-indigo-400 group-hover:scale-105 transition-transform">Amiodarona</span>
+                        <span class="text-[8px] text-slate-500 font-mono-clinical">300mg / 150mg</span>
+                    </button>
+                    <!-- Sulfato de Magnesio -->
+                    <button onclick="administerDrug('sulfato_mg')" class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-amber-500/40 hover:bg-slate-850 flex flex-col items-center text-center gap-1 group transition-all">
+                        <i class="fi fi-rr-syringe text-sm text-amber-400"></i>
+                        <span class="text-[11px] font-bold text-amber-400 group-hover:scale-105 transition-transform">Sulfato Mg</span>
+                        <span class="text-[8px] text-slate-500 font-mono-clinical">2g IV bolo</span>
+                    </button>
+                </div>
+
+                <!-- Historial de Medicamentos Administrados -->
+                <div class="mt-1 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80">
+                    <span class="flex items-center gap-1.5 text-[8px] font-bold text-slate-500 uppercase tracking-widest mb-1"><i class="fi fi-rr-clipboard-list text-[10px]"></i>Registro Clínico de Administración</span>
+                    <div id="drug-admin-log" class="text-[10px] font-mono-clinical text-slate-400 h-16 overflow-y-auto custom-scrollbar flex flex-col gap-1 pr-1">
+                        <div class="text-slate-600 italic">No se han administrado fármacos en este ciclo.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Descensor clínico dinámico -->
+            <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 flex flex-col gap-3">
+                <div>
+                    <h3 class="text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5 uppercase tracking-wider">
+                        <i class="fi fi-rr-stethoscope text-sky-400"></i> Análisis de Fisiopatología Activa
+                    </h3>
+                    <p id="clinical-desc" class="text-xs text-slate-400 leading-relaxed font-mono-clinical">
+                        Ritmo normal del corazón. Las ondas P son idénticas y positivas en DII, precediendo siempre a cada complejo QRS de manera regular.
+                    </p>
+                </div>
+                
+                <!-- Módulo de Diagnóstico Probable (Quiz/Evaluativo) -->
+                <div class="border-t border-slate-800/60 pt-3">
+                    <button id="btn-reveal-diagnosis" onclick="toggleDiagnosis()" class="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500/10 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20 border border-amber-500/35 active:scale-[0.98] transition-all px-4 py-3 rounded-xl text-xs font-semibold text-amber-300">
+                        <i id="btn-diag-icon" class="fi fi-rr-eye text-base"></i> <span id="btn-diag-text">Ver Diagnóstico Probable</span>
+                    </button>
+                    
+                    <div id="diagnosis-container" class="hidden mt-3 p-4 rounded-xl bg-slate-950/80 border border-amber-500/20 animate-fadeIn">
+                        <div class="flex items-center gap-2 mb-2">
+                            <i id="diag-severity-icon" class="fi fi-rr-shield-check text-emerald-400 text-lg"></i>
+                            <h4 id="diagnosis-title" class="text-xs font-bold uppercase tracking-wider text-amber-200">Cargando...</h4>
+                        </div>
+                        <p id="diagnosis-explain" class="text-[11px] text-slate-300 leading-relaxed font-mono-clinical">
+                            Selecciona un ritmo para ver su explicación diagnóstica.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- BIBLIOTECA DE ESCENARIOS CLÍNICOS (Columna Derecha / Colapsable) -->
+        <div id="library-col" class="lg:col-span-4 flex flex-col gap-4 transition-all duration-300">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col h-full max-h-[760px]">
+                <div class="flex items-center gap-2 border-b border-slate-800/80 pb-3 mb-3">
+                    <i class="fi fi-rr-bars-staggered text-sky-400 text-xl"></i>
+                    <div>
+                        <h2 class="text-sm font-bold text-slate-100 uppercase tracking-wider">Biblioteca de Ritmos</h2>
+                        <p class="text-[10px] text-slate-400">Selecciona para simular la signología fisiopatológica</p>
+                    </div>
+                </div>
+                
+                <!-- Lista de ritmos con scroll interno personalizado -->
+                <div id="rhythm-list" class="flex flex-col gap-2 overflow-y-auto pr-1 flex-1 custom-scrollbar">
+                    <!-- Rellenado dinámicamente con JS -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // --- MOTOR DE SONIDO (WEB AUDIO API) ---
+        let audioCtx = null;
+        let isMuted = true;
+        let volumeNode = null;
+        let flatlineOsc = null;
+        
+        // Canales visibles
+        let showTA = true;
+        let showPlet = true;
+        let showCapno = true;
+
+        // Centros y escalas de osciloscopio
+        let ecgCenter = 110, ecgScale = 1.0;
+        let pletCenter = 240, pletScale = 1.6;
+        let co2Center = 410, co2Scale = 3.8;
+
+        let globalTime = 0;
+        let cycleProgress = 0;
+        let pletCycleProgress = 0;
+        let co2CycleProgress = 0;
+        let randomOffset = Math.random();
+        let currentLead = 'II';
+        let currentKey = 'sinusal';
+        let isLibraryCollapsed = false;
+        let isPaused = false;
+
+        // --- SISTEMA DE DESFIBRILACIÓN Y METRÓNOMO ---
+        let paddlesConnected = false;
+        let metronomeActive = false;
+        let cprMetronomeInterval = null;
+        let cprTimerInterval = null;
+        let cprTimerVal = 120; // 2 minutos (120 segundos)
+        let targetJoules = 200;
+        let chargeState = 'idle'; // 'idle', 'charging', 'ready'
+        let chargeValue = 0;
+        let chargeProgressInterval = null;
+        let chargingAudioOsc = null;
+        let defibShockSuccess = true; 
+
+        // --- FARMACOLOGÍA CLINICA & HISTORIAL ---
+        let amiodaroneAdministered = false;
+        let drugLog = [];
+
+        // --- CARGA DE IMÁGENES DE TRAZOS ---
+        let uploadedEkgImage = null;
+        let isUsingUploadedImage = false;
+        let uploadedImageOffset = 0;
+
+        // --- CONFIGURACIÓN DE PANTALLA DE CANAL (CANVAS) ---
+        const canvas = document.getElementById('monitorCanvas');
+        const monitorCtx = canvas.getContext('2d');
+        const sweepSpeed = 2.8; 
+        const scanBarWidth = 25; 
+        let sweepX = 0;
+        let monitorTheme = 'dark';
+
+        // Historial de trazados
+        let ecgHistory = [];
+        let pletHistory = [];
+        let co2History = [];
+
+        // --- BIBLIOTECA COMPLETA DE RITMOS ---
+        const SCENARIOS = {
+            sinusal: {
+                name: "Ritmo sinusal",
+                bpm: 72,
+                bp_sys: 120,
+                bp_dia: 80,
+                spo2: 98,
+                etco2: 38,
+                fr: 16,
+                status: "Normal",
+                desc: "Trazo cardiaco normal. Ondas P positivas en derivación DII seguidas consistentemente por complejos QRS de duración normal y ondas T regulares.",
+                diagTitle: "Ritmo Sinusal Fisiológico",
+                diagIcon: "fi-rr-shield-check",
+                diagColor: "text-emerald-400",
+                diagExpl: "Corazón latiendo de manera fisiológica y perfectamente coordinada. El marcapasos natural (nodo sinusal) emite impulsos regulares que despolarizan las aurículas y luego los ventrículos. No se observan anomalías hemodinámicas.",
+                generator: (t) => {
+                    if (t < 0.1) return 12 * Math.sin((t / 0.1) * Math.PI); 
+                    if (t < 0.15) return 0; 
+                    if (t < 0.17) return -8 * Math.sin(((t - 0.15) / 0.02) * Math.PI); 
+                    if (t < 0.21) return 75 * Math.sin(((t - 0.17) / 0.04) * Math.PI); 
+                    if (t < 0.24) return -18 * Math.sin(((t - 0.21) / 0.03) * Math.PI); 
+                    if (t < 0.35) return 0; 
+                    if (t < 0.50) return 20 * Math.sin(((t - 0.35) / 0.15) * Math.PI); 
+                    return 0;
+                }
+            },
+            bradicardia: {
+                name: "Bradicardia sinusal",
+                bpm: 45,
+                bp_sys: 95,
+                bp_dia: 58,
+                spo2: 96,
+                etco2: 41,
+                fr: 12,
+                status: "Lento",
+                desc: "Ritmo sinusal con frecuencia cardíaca lenta (<60 LPM). Las ondas conservan una morfología sana, pero el intervalo de reposo T-P es significativamente más largo.",
+                diagTitle: "Bradicardia Sinusal",
+                diagIcon: "fi-rr-exclamation",
+                diagColor: "text-amber-400",
+                diagExpl: "Frecuencia cardíaca inferior a 60 LPM, conservando la morfología y secuencia sinusal normal. Si es sintomática (disnea, mareos, hipotensión), puede sugerir disfunción del nodo sinusal o efecto de bloqueadores de canales.",
+                generator: (t) => {
+                    if (t < 0.07) return 12 * Math.sin((t / 0.07) * Math.PI); 
+                    if (t < 0.10) return 0;
+                    if (t < 0.12) return -8 * Math.sin(((t - 0.10) / 0.02) * Math.PI); 
+                    if (t < 0.15) return 75 * Math.sin(((t - 0.12) / 0.03) * Math.PI); 
+                    if (t < 0.17) return -18 * Math.sin(((t - 0.15) / 0.02) * Math.PI); 
+                    if (t < 0.25) return 0;
+                    if (t < 0.35) return 20 * Math.sin(((t - 0.25) / 0.10) * Math.PI); 
+                    return 0;
+                }
+            },
+            taquicardia: {
+                name: "Taquicardia sinusal",
+                bpm: 130,
+                bp_sys: 135,
+                bp_dia: 88,
+                spo2: 97,
+                etco2: 34,
+                fr: 20,
+                status: "Rápido",
+                desc: "Ritmo sinusal acelerado (>100 LPM). Los ciclos se acortan significativamente, juntando el final de la onda T con el inicio del próximo latido.",
+                diagTitle: "Taquicardia Sinusal Fisiológica",
+                diagIcon: "fi-rr-exclamation",
+                diagColor: "text-amber-400",
+                diagExpl: "Aceleración rítmica del nodo sinusal por encima de 100 LPM. Suele ser una respuesta fisiológica normal al ejercicio físico, estrés emocional, fiebre, dolor, anemia o deshidratación.",
+                generator: (t) => {
+                    if (t < 0.15) return 11 * Math.sin((t / 0.15) * Math.PI); 
+                    if (t < 0.20) return 0;
+                    if (t < 0.23) return -8 * Math.sin(((t - 0.20) / 0.03) * Math.PI); 
+                    if (t < 0.30) return 70 * Math.sin(((t - 0.23) / 0.07) * Math.PI); 
+                    if (t < 0.35) return -16 * Math.sin(((t - 0.30) / 0.05) * Math.PI); 
+                    if (t < 0.42) return 0;
+                    if (t < 0.75) return 18 * Math.sin(((t - 0.42) / 0.33) * Math.PI); 
+                    return 0;
+                }
+            },
+            fib_ventricular: {
+                name: "Fibrilación ventricular",
+                bpm: 0,
+                bp_sys: 0,
+                bp_dia: 0,
+                spo2: 0,
+                etco2: 4, 
+                fr: 0,
+                status: "PARO - DESFIBRILABLE",
+                desc: "Actividad eléctrica caótica y desorganizada sin contracción ventricular mecánica. No existen ondas reconocibles. Paciente sin pulso, requiere desfibrilación inmediata.",
+                diagTitle: "Fibrilación Ventricular (Paro Cardíaco)",
+                diagIcon: "fi-rr-skull",
+                diagColor: "text-rose-500 animate-pulse",
+                diagExpl: "Actividad ventricular totalmente caótica sin bombeo mecánico de sangre. No hay pulso, presión arterial ni saturación. Este es un ritmo de paro de extrema emergencia. Tratamiento: RCP de alta calidad de inmediato y desfibrilación eléctrica.",
+                generator: (t, totalTime) => {
+                    return (Math.sin(totalTime * 0.08) * 14) + 
+                           (Math.sin(totalTime * 0.23) * 9) + 
+                           (Math.random() - 0.5) * 10;
+                }
+            },
+            taq_ventricular: {
+                name: "Taquicardia ventricular",
+                bpm: 165,
+                bp_sys: 75,
+                bp_dia: 45, 
+                spo2: 80,
+                etco2: 24,
+                fr: 22,
+                status: "PARO - DESFIBRILABLE",
+                desc: "Ritmo rápido originado en los ventrículos con complejos QRS anchos y aberrantes. Puede cursar con o sin pulso y deteriorar rápidamente a fibrilación.",
+                diagTitle: "Taquicardia Ventricular Monomórfica",
+                diagIcon: "fi-rr-triangle-warning",
+                diagColor: "text-rose-500",
+                diagExpl: "Complejos QRS anchos (>0.12s) generados por un foco ectópico en los ventrículos a alta velocidad. Si el paciente está inestable o sin pulso, se trata igual que una FV (RCP + Desfibrilación).",
+                generator: (t) => {
+                    return 55 * Math.sin(t * 2 * Math.PI) - 12 * Math.cos(t * 4 * Math.PI);
+                }
+            },
+            aleteo_auricular: {
+                name: "Aleteo auricular (Flutter)",
+                bpm: 75,
+                bp_sys: 110,
+                bp_dia: 70,
+                spo2: 95,
+                etco2: 37,
+                fr: 16,
+                status: "No Desfibrilable",
+                desc: "Ritmo rápido auricular regular caracterizado por ondas en 'diente de sierra' (ondas F) debido a un circuito de reentrada, con respuesta ventricular bloqueada (ej. 4:1).",
+                diagTitle: "Flutter Auricular con Conducción 4:1",
+                diagIcon: "fi-rr-chart-line-up-down",
+                diagColor: "text-sky-400",
+                diagExpl: "Presencia de un circuito de macro-reentrada en la aurícula derecha que genera contracciones auriculares regulares extremadamente rápidas (~300 LPM). Se observa la típica línea base en 'dientes de sierra'.",
+                generator: (t) => {
+                    let base = 10 * Math.sin(t * 4 * 2 * Math.PI); 
+                    let qrs = 0;
+                    if (t > 0.4 && t < 0.42) qrs = -8;
+                    else if (t >= 0.42 && t < 0.45) qrs = 75 * Math.sin(((t - 0.42) / 0.03) * Math.PI);
+                    else if (t >= 0.45 && t < 0.48) qrs = -18 * Math.sin(((t - 0.45) / 0.03) * Math.PI);
+                    return base + qrs;
+                }
+            },
+            fib_auricular: {
+                name: "Fibrilación auricular",
+                bpm: 110,
+                bp_sys: 115,
+                bp_dia: 75,
+                spo2: 94,
+                etco2: 36,
+                fr: 16,
+                status: "No Desfibrilable",
+                desc: "Activación auricular caótica e irregular. Ausencia de ondas P verdaderas, sustituidas por ondas f de baja amplitud, y una respuesta ventricular totalmente irregular.",
+                diagTitle: "Fibrilación Auricular (FA)",
+                diagIcon: "fi-rr-chart-line-up-down",
+                diagColor: "text-sky-400",
+                diagExpl: "Activación eléctrica desorganizada en las aurículas. Provoca riesgo tromboembólico elevado y pérdida de llenado diastólico óptimo. Se caracteriza por un ritmo ventricular totalmente irregular.",
+                generator: (t, totalTime, isNewCycle, randomOffset) => {
+                    let baselineNoise = (Math.sin(totalTime * 0.3) * 2.5) + ((Math.random() - 0.5) * 4);
+                    let qrs = 0;
+                    let trigger = 0.2 + (randomOffset * 0.4); 
+                    if (t > trigger && t < trigger + 0.03) {
+                        qrs = 70 * Math.sin(((t - trigger) / 0.03) * Math.PI);
+                    } else if (t >= trigger + 0.03 && t < trigger + 0.05) {
+                        qrs = -14 * Math.sin(((t - (trigger + 0.03)) / 0.02) * Math.PI);
+                    } else if (t >= trigger + 0.1 && t < trigger + 0.25) {
+                        qrs = 13 * Math.sin(((t - (trigger + 0.1)) / 0.15) * Math.PI); 
+                    }
+                    return baselineNoise + qrs;
+                }
+            },
+            taq_supraventricular: {
+                name: "Taquicardia supraventricular (SVT)",
+                bpm: 190,
+                bp_sys: 85,
+                bp_dia: 55,
+                spo2: 89,
+                etco2: 29,
+                fr: 20,
+                status: "No Desfibrilable",
+                desc: "Taquicardia de inicio súbito originada por encima de los ventrículos con complejos QRS angostos y rítmicos. Las ondas P se fusionan y quedan ocultas en la onda T anterior.",
+                diagTitle: "Taquicardia Supraventricular Paroxística",
+                diagIcon: "fi-rr-shield-exclamation",
+                diagColor: "text-orange-400",
+                diagExpl: "Ritmo extremadamente veloz por reentrada nodal. Complejos QRS estrechos por conducción normal del Haz de His. El tratamiento farmacológico de primera elección es la **Adenosina IV**.",
+                generator: (t) => {
+                    if (t < 0.05) return 0;
+                    if (t < 0.10) return -8 * Math.sin(((t - 0.05) / 0.05) * Math.PI);
+                    if (t < 0.22) return 80 * Math.sin(((t - 0.10) / 0.12) * Math.PI); 
+                    if (t < 0.30) return -20 * Math.sin(((t - 0.22) / 0.08) * Math.PI); 
+                    if (t < 0.70) return 22 * Math.sin(((t - 0.30) / 0.40) * Math.PI); 
+                    return 0;
+                }
+            },
+            torsades: {
+                name: "Torsades de pointes",
+                bpm: 175,
+                bp_sys: 55,
+                bp_dia: 30, 
+                spo2: 70,
+                etco2: 15,
+                fr: 24,
+                status: "PARO - DESFIBRILABLE",
+                desc: "Taquicardia ventricular polimórfica caracterizada por la torsión helicoidal de las puntas del complejo QRS sobre la línea isoeléctrica. Emergencia inestable.",
+                diagTitle: "Torsades de Pointes (TV Polimórfica)",
+                diagIcon: "fi-rr-bolt",
+                diagColor: "text-rose-500 animate-pulse",
+                diagExpl: "Taquicardia ventricular polimórfica asociada a intervalo QT largo. Las puntas de los complejos QRS rotan continuamente sobre la línea de base. El tratamiento farmacológico clave es el **Sulfato de Magnesio IV**.",
+                generator: (t, totalTime) => {
+                    let modulation = Math.sin(totalTime * 0.015);
+                    let baseWave = 55 * Math.sin(t * 2 * Math.PI) * modulation;
+                    let artifact = 12 * Math.cos(t * 4 * Math.PI) * Math.abs(modulation);
+                    return baseWave - artifact + (Math.random() - 0.5) * 3;
+                }
+            },
+            asistolia: {
+                name: "Asistolia",
+                bpm: 0,
+                bp_sys: 0,
+                bp_dia: 0,
+                spo2: 0,
+                etco2: 0, 
+                fr: 0,
+                status: "PARO - NO DESFIBRILABLE",
+                desc: "Ausencia completa de actividad eléctrica y mecánica en los ventrículos. Línea plana de arrastre. Requiere maniobras de RCP avanzadas y adrenalina.",
+                diagTitle: "Asistolia Ventricular (Paro Cardíaco)",
+                diagIcon: "fi-rr-heart-crack",
+                diagColor: "text-rose-600 animate-pulse",
+                diagExpl: "Ausencia de actividad eléctrica contráctil (silencio ventricular). Es un ritmo no desfibrilable. Iniciar RCP de alta calidad, intubación y administración de **Adrenalina 1mg IV/IO** cada 3-5 minutos.",
+                generator: () => {
+                    return (Math.random() - 0.5) * 1.2;
+                }
+            },
+            stemi: {
+                name: "Infarto de miocardio (STEMI)",
+                bpm: 82,
+                bp_sys: 140,
+                bp_dia: 90, 
+                spo2: 91,
+                etco2: 35,
+                fr: 16,
+                status: "No Desfibrilable",
+                desc: "Infarto de miocardio con elevación del segmento S-T. Indica lesión transmural isquémica activa (obstrucción arterial coronaria aguda).",
+                diagTitle: "IAM de Cara Inferior con Elevación del ST",
+                diagIcon: "fi-rr-flame",
+                diagColor: "text-red-500 animate-bounce",
+                diagExpl: "Una elevación masiva y convexa del segmento S-T (morfología de «aleta de tiburón») en cara inferior (DII), indicando oclusión coronaria transmural. Protocolo de revascularización coronaria de emergencia.",
+                generator: (t) => {
+                    if (t < 0.1) return 12 * Math.sin((t / 0.1) * Math.PI); 
+                    if (t < 0.15) return 0;
+                    if (t < 0.17) return -8 * Math.sin(((t - 0.15) / 0.02) * Math.PI); 
+                    if (t < 0.21) return 75 * Math.sin(((t - 0.17) / 0.04) * Math.PI); 
+                    if (t < 0.24) return -4 * Math.sin(((t - 0.21) / 0.03) * Math.PI); 
+                    if (t < 0.55) { 
+                        return 35 * Math.sin(((t - 0.21) / 0.34) * 0.8 * Math.PI) + 16;
+                    }
+                    return 0;
+                }
+            },
+            pea: {
+                name: "AESP (Actividad Eléctrica Sin Pulso)",
+                bpm: 72,
+                bp_sys: 0,
+                bp_dia: 0,
+                spo2: 0,
+                etco2: 0,
+                fr: 0,
+                status: "PARO - NO DESFIBRILABLE",
+                desc: "Presencia de actividad eléctrica organizada (ritmo sinusal) en el monitor, pero el paciente está en paro clínico: sin pulso, sin tensión arterial ni oxigenación pulmonar.",
+                diagTitle: "Actividad Eléctrica Sin Pulso (AESP)",
+                diagIcon: "fi-rr-shield-exclamation",
+                diagColor: "text-red-400",
+                diagExpl: "El monitor muestra un trazo electrocardiográfico estructurado, pero no se traduce en contracción muscular cardíaca real. Ritmo no desfibrilable. Tratar causas reversibles (5 Hs y 5 Ts) e infundir adrenalina.",
+                generator: (t) => {
+                    if (t < 0.1) return 12 * Math.sin((t / 0.1) * Math.PI); 
+                    if (t < 0.15) return 0; 
+                    if (t < 0.17) return -8 * Math.sin(((t - 0.15) / 0.02) * Math.PI); 
+                    if (t < 0.21) return 75 * Math.sin(((t - 0.17) / 0.04) * Math.PI); 
+                    if (t < 0.24) return -18 * Math.sin(((t - 0.21) / 0.03) * Math.PI); 
+                    if (t < 0.35) return 0; 
+                    if (t < 0.50) return 20 * Math.sin(((t - 0.35) / 0.15) * Math.PI); 
+                    return 0;
+                }
+            },
+            bloqueo_av_3: {
+                name: "Bloqueo AV Completo (3er Grado)",
+                bpm: 32,
+                bp_sys: 85,
+                bp_dia: 40,
+                spo2: 90,
+                etco2: 44,
+                fr: 14,
+                status: "No Desfibrilable",
+                desc: "Bloqueo AV de tercer grado. Disociación completa entre las aurículas y los ventrículos. Las ondas P y los QRS marchan de forma independiente a frecuencias muy bajas.",
+                diagTitle: "Bloqueo Auriculoventricular Completo",
+                diagIcon: "fi-rr-exclamation",
+                diagColor: "text-orange-400",
+                diagExpl: "Falla total de la conducción auriculoventricular. Ningún impulso auricular se transmite a los ventrículos. Ritmo no desfibrilable, suele requerir atropina inicial o estimulación mediante marcapasos transcutáneo.",
+                generator: (t, totalTime) => {
+                    let pWave = 0;
+                    let pPhase = (totalTime * 0.01) % 1;
+                    if (pPhase < 0.1) pWave = 10 * Math.sin((pPhase / 0.1) * Math.PI);
+
+                    let qrs = 0;
+                    if (t < 0.08) qrs = -10 * Math.sin((t / 0.08) * Math.PI);
+                    else if (t >= 0.08 && t < 0.16) qrs = 60 * Math.sin(((t - 0.08) / 0.08) * Math.PI);
+                    else if (t >= 0.16 && t < 0.24) qrs = -20 * Math.sin(((t - 0.16) / 0.08) * Math.PI);
+                    else if (t >= 0.35 && t < 0.65) qrs = 16 * Math.sin(((t - 0.35) / 0.30) * Math.PI);
+
+                    return pWave + qrs;
+                }
+            }
+        };
+
+        // --- STREAMING_CHUNK: Creando funciones controladoras del Android drawer (Bootstrap Offcanvas)... ---
+        function getDrawerInstance() {
+            return bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('sidebar-drawer'));
+        }
+        function openDrawer() {
+            getDrawerInstance().show();
+        }
+
+        function closeDrawer() {
+            getDrawerInstance().hide();
+        }
+
+        function toggleLibrary() {
+            isLibraryCollapsed = !isLibraryCollapsed;
+            const monitorCol = document.getElementById('monitor-col');
+            const libraryCol = document.getElementById('library-col');
+            const toggleText = document.getElementById('btn-toggle-library-text');
+            const toggleIcon = document.getElementById('btn-toggle-library-icon');
+
+            const sideText = document.getElementById('sidebar-btn-toggle-library-text');
+            const sideIcon = document.getElementById('sidebar-btn-toggle-library-icon');
+
+            if (isLibraryCollapsed) {
+                monitorCol.className = "lg:col-span-12 flex flex-col gap-4 transition-all duration-300";
+                libraryCol.classList.add('hidden');
+                if (toggleText) toggleText.innerText = "Mostrar Biblioteca";
+                if (toggleIcon) toggleIcon.className = "fi fi-rr-eye text-base";
+                
+                if (sideText) sideText.innerText = "Mostrar Biblioteca";
+                if (sideIcon) sideIcon.className = "fi fi-rr-eye text-base";
+            } else {
+                monitorCol.className = "lg:col-span-8 flex flex-col gap-4 transition-all duration-300";
+                libraryCol.classList.remove('hidden');
+                if (toggleText) toggleText.innerText = "Ocultar Biblioteca";
+                if (toggleIcon) toggleIcon.className = "fi fi-rr-eye-crossed text-base";
+                
+                if (sideText) sideText.innerText = "Ocultar Biblioteca";
+                if (sideIcon) sideIcon.className = "fi fi-rr-eye-crossed text-base";
+            }
+            
+            setTimeout(resizeCanvas, 50);
+        }
+
+        function togglePausePlay() {
+            isPaused = !isPaused;
+            const pauseIcon = document.getElementById('pause-icon');
+            const pauseText = document.getElementById('pause-text');
+            const btn = document.getElementById('btn-pause-play');
+
+            const sideIcon = document.getElementById('sidebar-pause-icon');
+            const sideText = document.getElementById('sidebar-pause-text');
+            const sideBtn = document.getElementById('sidebar-btn-pause-play');
+
+            if (isPaused) {
+                const classPlay = "fi fi-rr-play text-base text-emerald-400";
+                if (pauseIcon) pauseIcon.className = classPlay;
+                if (pauseText) pauseText.innerText = "Reanudar Trazo";
+                if (btn) btn.classList.add('border-emerald-500/40', 'bg-emerald-950/20');
+                
+                if (sideIcon) sideIcon.className = classPlay;
+                if (sideText) sideText.innerText = "Reanudar Trazo";
+                if (sideBtn) sideBtn.classList.add('border-emerald-500/40', 'bg-emerald-950/20');
+            } else {
+                const classPause = "fi fi-rr-pause text-base";
+                if (pauseIcon) pauseIcon.className = classPause;
+                if (pauseText) pauseText.innerText = "Pausar Trazo";
+                if (btn) btn.classList.remove('border-emerald-500/40', 'bg-emerald-950/20');
+                
+                if (sideIcon) sideIcon.className = classPause;
+                if (sideText) sideText.innerText = "Pausar Trazo";
+                if (sideBtn) sideBtn.classList.remove('border-emerald-500/40', 'bg-emerald-950/20');
+            }
+        }
+
+        function changeLead(val) {
+            currentLead = val;
+            document.getElementById('lead-sub-display').innerText = val;
+            document.getElementById('lead-label-display').innerText = val;
+        }
+
+        function toggleChannel(type) {
+            const btn = document.getElementById(`btn-chan-${type}`);
+            if (type === 'ta') {
+                showTA = !showTA;
+                updateButtonState(btn, showTA);
+                document.getElementById('box-ta').style.display = showTA ? 'flex' : 'none';
+            } else if (type === 'spo2') {
+                showPlet = !showPlet;
+                updateButtonState(btn, showPlet);
+                document.getElementById('box-spo2').style.display = showPlet ? 'flex' : 'none';
+                document.getElementById('label-plet').style.display = showPlet ? 'block' : 'none';
+            } else if (type === 'capno') {
+                showCapno = !showCapno;
+                updateButtonState(btn, showCapno);
+                document.getElementById('box-etco2').style.display = showCapno ? 'flex' : 'none';
+                document.getElementById('label-co2').style.display = showCapno ? 'block' : 'none';
+            }
+            updateChannelPositions();
+        }
+
+        function updateButtonState(btn, isActive) {
+            if (isActive) {
+                btn.className = "px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-950/60 text-emerald-400 border border-emerald-500/30 transition-all";
+            } else {
+                btn.className = "px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-950/40 text-slate-500 border border-slate-800/40 transition-all";
+            }
+        }
+
+        // --- STREAMING_CHUNK: Escalador responsivo de los canales de dibujo... ---
+        function updateChannelPositions() {
+            let activeChannelsCount = 1 + (showPlet ? 1 : 0) + (showCapno ? 1 : 0);
+            let h = canvas.height || 460;
+            
+            if (activeChannelsCount === 3) {
+                ecgCenter = h * 0.23; ecgScale = (h * 0.16) / 75;
+                pletCenter = h * 0.55; pletScale = (h * 0.13) / 35;
+                co2Center = h * 0.85; co2Scale = (h * 0.13) / 35;
+            } else if (activeChannelsCount === 2) {
+                if (showPlet) {
+                    ecgCenter = h * 0.3; ecgScale = (h * 0.22) / 75;
+                    pletCenter = h * 0.7; pletScale = (h * 0.18) / 35;
+                } else if (showCapno) {
+                    ecgCenter = h * 0.3; ecgScale = (h * 0.22) / 75;
+                    co2Center = h * 0.7; co2Scale = (h * 0.18) / 35;
+                }
+            } else { 
+                ecgCenter = h * 0.5; ecgScale = (h * 0.38) / 75;
+            }
+
+            if (ecgHistory.length !== canvas.width) {
+                ecgHistory = new Array(canvas.width).fill(ecgCenter);
+                pletHistory = new Array(canvas.width).fill(pletCenter);
+                co2History = new Array(canvas.width).fill(co2Center);
+            } else {
+                ecgHistory.fill(ecgCenter);
+                pletHistory.fill(pletCenter);
+                co2History.fill(co2Center);
+            }
+
+            const labelEcg = document.getElementById('label-ecg');
+            const labelPlet = document.getElementById('label-plet');
+            const labelCo2 = document.getElementById('label-co2');
+
+            if (labelEcg) labelEcg.style.top = `${ecgCenter - (h * 0.14) < 8 ? 8 : ecgCenter - (h * 0.14)}px`;
+            if (labelPlet && showPlet) labelPlet.style.top = `${pletCenter - (h * 0.14)}px`;
+            if (labelCo2 && showCapno) labelCo2.style.top = `${co2Center - (h * 0.14)}px`;
+        }
+
+        // --- STREAMING_CHUNK: Creando el inicializador de audio de sístoles... ---
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                
+                volumeNode = audioCtx.createGain();
+                const sliderVal = document.getElementById('volume-slider').value;
+                const gainVal = (sliderVal / 100) * 0.25; 
+                volumeNode.connect(audioCtx.destination);
+                volumeNode.gain.setValueAtTime(gainVal, audioCtx.currentTime);
+            }
+        }
+
+        function updateVolume(val) {
+            document.getElementById('volume-text').innerText = `${val}%`;
+            if (!audioCtx) initAudio();
+            if (volumeNode && audioCtx) {
+                const gainVal = (val / 100) * 0.25; 
+                volumeNode.gain.setValueAtTime(gainVal, audioCtx.currentTime);
+            }
+        }
+
+        function toggleAudio() {
+            initAudio();
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            isMuted = !isMuted;
+            const audioBtn = document.getElementById('btn-audio');
+            const audioIcon = document.getElementById('audio-icon');
+            const audioText = document.getElementById('audio-text');
+
+            if (isMuted) {
+                audioIcon.className = "fi fi-rr-volume-mute text-base";
+                audioText.innerText = "Silenciado";
+                audioBtn.className = "w-full py-2 px-3 rounded-lg text-rose-400 hover:text-rose-300 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-rose-800/40 bg-rose-950/20";
+                stopFlatline();
+            } else {
+                audioIcon.className = "fi fi-rr-volume text-base animate-pulse";
+                audioText.innerText = "Monitor Activo";
+                audioBtn.className = "w-full py-2 px-3 rounded-lg text-emerald-400 hover:text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 transition-all border border-emerald-800/40 bg-emerald-950/20";
+                
+                const r = SCENARIOS[currentKey];
+                if (r.bpm === 0) startFlatline();
+            }
+        }
+
+        function playPulseBeep(spo2) {
+            if (isMuted || !audioCtx) return;
+            const pitch = 300 + (spo2 * 3.5);
+
+            const osc = audioCtx.createOscillator();
+            const oscGain = audioCtx.createGain();
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(pitch, audioCtx.currentTime);
+
+            oscGain.gain.setValueAtTime(0, audioCtx.currentTime);
+            oscGain.gain.linearRampToValueAtTime(0.6, audioCtx.currentTime + 0.02);
+            oscGain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.15);
+
+            osc.connect(oscGain);
+            oscGain.connect(volumeNode);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.18);
+        }
+
+        function startFlatline() {
+            if (isMuted || !audioCtx || flatlineOsc) return;
+
+            flatlineOsc = audioCtx.createOscillator();
+            const flatlineGain = audioCtx.createGain();
+
+            flatlineOsc.type = 'sine';
+            flatlineOsc.frequency.setValueAtTime(320, audioCtx.currentTime); 
+            flatlineGain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+
+            flatlineOsc.connect(flatlineGain);
+            flatlineGain.connect(volumeNode);
+            flatlineOsc.start();
+        }
+
+        function stopFlatline() {
+            if (flatlineOsc) {
+                try {
+                    flatlineOsc.stop();
+                } catch(e) {}
+                flatlineOsc = null;
+            }
+        }
+
+        // --- STREAMING_CHUNK: Conectando sintesis de voz de emergencias... ---
+        function speakPrompt(message, onEndCallback) {
+            document.getElementById('defib-voice-prompt').innerText = message;
+            
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel(); 
+                const utterance = new SpeechSynthesisUtterance(message);
+                utterance.lang = 'es-ES';
+                utterance.rate = 0.95;
+                if (onEndCallback) {
+                    utterance.onend = onEndCallback;
+                }
+                window.speechSynthesis.speak(utterance);
+            } else {
+                if (onEndCallback) setTimeout(onEndCallback, 2500);
+            }
+        }
+
+        // --- STREAMING_CHUNK: Creando renderizador de la rejilla medica... ---
+        function drawGrid() {
+            if (monitorTheme === 'dark') {
+                monitorCtx.fillStyle = '#050c08'; 
+                monitorCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Rejilla de 1mm (cada 10px)
+                monitorCtx.lineWidth = 0.4;
+                monitorCtx.strokeStyle = '#122c18';
+                monitorCtx.beginPath();
+                for (let x = 0; x < canvas.width; x += 10) {
+                    monitorCtx.moveTo(x, 0); monitorCtx.lineTo(x, canvas.height);
+                }
+                for (let y = 0; y < canvas.height; y += 10) {
+                    monitorCtx.moveTo(0, y); monitorCtx.lineTo(canvas.width, y);
+                }
+                monitorCtx.stroke();
+
+                // Rejilla de 5mm (cada 50px)
+                monitorCtx.lineWidth = 0.9;
+                monitorCtx.strokeStyle = '#22522e';
+                monitorCtx.beginPath();
+                for (let x = 0; x < canvas.width; x += 50) {
+                    monitorCtx.moveTo(x, 0); monitorCtx.lineTo(x, canvas.height);
+                }
+                for (let y = 0; y < canvas.height; y += 50) {
+                    monitorCtx.moveTo(0, y); monitorCtx.lineTo(canvas.width, y);
+                }
+                monitorCtx.stroke();
+            } else {
+                // Papel Rosa
+                monitorCtx.fillStyle = '#fff5f5';
+                monitorCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Rejilla de 1mm
+                monitorCtx.lineWidth = 0.4;
+                monitorCtx.strokeStyle = '#ffccd5';
+                monitorCtx.beginPath();
+                for (let x = 0; x < canvas.width; x += 10) {
+                    monitorCtx.moveTo(x, 0); monitorCtx.lineTo(x, canvas.height);
+                }
+                for (let y = 0; y < canvas.height; y += 10) {
+                    monitorCtx.moveTo(0, y); monitorCtx.lineTo(canvas.width, y);
+                }
+                monitorCtx.stroke();
+
+                // Rejilla de 5mm
+                monitorCtx.lineWidth = 0.9;
+                monitorCtx.strokeStyle = '#ff99a8';
+                monitorCtx.beginPath();
+                for (let x = 0; x < canvas.width; x += 50) {
+                    monitorCtx.moveTo(x, 0); monitorCtx.lineTo(x, canvas.height);
+                }
+                for (let y = 0; y < canvas.height; y += 50) {
+                    monitorCtx.moveTo(0, y); monitorCtx.lineTo(canvas.width, y);
+                }
+                monitorCtx.stroke();
+            }
+        }
+
+        function setTheme(theme) {
+            monitorTheme = theme;
+            const darkBtn = document.getElementById('theme-dark');
+            const paperBtn = document.getElementById('theme-paper');
+            if (theme === 'dark') {
+                darkBtn.className = "py-2 rounded-xl text-xs font-bold transition-all border bg-emerald-950 text-emerald-400 border-emerald-800";
+                paperBtn.className = "py-2 rounded-xl text-xs font-bold transition-all border bg-slate-900 text-slate-400 border-slate-800";
+            } else {
+                darkBtn.className = "py-2 rounded-xl text-xs font-bold transition-all border bg-slate-900 text-slate-400 border-slate-800";
+                paperBtn.className = "py-2 rounded-xl text-xs font-bold transition-all border bg-rose-950 text-rose-400 border-rose-800";
+            }
+        }
+
+        // --- STREAMING_CHUNK: Proyección espacial de Einthoven... ---
+        function projectLead(val, lead, phase) {
+            if (lead === 'II') return val;
+            if (lead === 'I') return val * 0.7;
+            if (lead === 'III') return val * 0.4;
+            if (lead === 'aVR') return -val; 
+            if (lead === 'aVL') return val * -0.2; 
+            if (lead === 'aVF') return val * 0.8;
+            
+            if (lead === 'V1') {
+                if (phase > 0.17 && phase < 0.24) return -val * 0.8;
+                return val * 0.5;
+            }
+            if (lead === 'V2') {
+                if (phase > 0.17 && phase < 0.24) return -val * 0.6;
+                return val * 0.6;
+            }
+            if (lead === 'V3') {
+                if (phase > 0.17 && phase < 0.24) return val * 0.4 * Math.sin((phase - 0.17) / 0.07 * Math.PI * 2);
+                return val * 0.8;
+            }
+            if (lead === 'V4') return val * 1.1;
+            if (lead === 'V5') return val * 1.3;
+            if (lead === 'V6') return val * 1.0;
+            
+            return val;
+        }
+
+        // --- STREAMING_CHUNK: Configurando el modulo del desfibrilador manual... ---
+        function toggleDefibModule(enabled) {
+            paddlesConnected = enabled;
+            const defibBox = document.getElementById('defib-module');
+            const checkDefib = document.getElementById('check-defib');
+            if (checkDefib) checkDefib.checked = enabled;
+
+            if (enabled) {
+                defibBox.classList.remove('hidden');
+                speakPrompt("Parches conectados. Presione ANALIZAR.");
+            } else {
+                defibBox.classList.add('hidden');
+                if (chargeProgressInterval) clearInterval(chargeProgressInterval);
+                stopChargingOscillator();
+                chargeState = 'idle';
+                document.getElementById('btn-defib-analyze').disabled = false;
+                document.getElementById('btn-defib-shock').disabled = true;
+                document.getElementById('btn-defib-shock').className = "w-full py-4 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-1.5 cursor-not-allowed opacity-50";
+                document.getElementById('charging-status-indicator').classList.add('hidden');
+                document.getElementById('btn-defib-analyze').classList.remove('hidden');
+                toggleMetronome(false);
+            }
+        }
+
+        function toggleShockSuccess(enabled) {
+            defibShockSuccess = enabled;
+        }
+
+        function toggleMetronome(enabled) {
+            metronomeActive = enabled;
+            const metronomeIcon = document.getElementById('cpr-visual-node');
+            const timerNode = document.getElementById('cpr-timer-node');
+            const checkMetronome = document.getElementById('check-metronome');
+            if (checkMetronome) checkMetronome.checked = enabled;
+            
+            if (enabled) {
+                metronomeIcon.classList.remove('hidden');
+                metronomeIcon.classList.add('cpr-metronome-active');
+                if (timerNode) timerNode.classList.remove('hidden');
+                
+                if (cprMetronomeInterval) clearInterval(cprMetronomeInterval);
+                cprMetronomeInterval = setInterval(() => {
+                    playMetronomeBeep();
+                }, 545);
+
+                cprTimerVal = 120;
+                updateTimerDisplay();
+                if (cprTimerInterval) clearInterval(cprTimerInterval);
+                cprTimerInterval = setInterval(() => {
+                    cprTimerVal--;
+                    updateTimerDisplay();
+                    if (cprTimerVal <= 0) {
+                        clearInterval(cprTimerInterval);
+                        toggleMetronome(false); 
+                        analyzeRhythm();
+                    }
+                }, 1000);
+            } else {
+                metronomeIcon.classList.add('hidden');
+                metronomeIcon.classList.remove('cpr-metronome-active');
+                if (timerNode) timerNode.classList.add('hidden');
+                if (cprMetronomeInterval) clearInterval(cprMetronomeInterval);
+                if (cprTimerInterval) clearInterval(cprTimerInterval);
+            }
+        }
+
+        function updateTimerDisplay() {
+            const minutes = Math.floor(cprTimerVal / 60);
+            const seconds = cprTimerVal % 60;
+            const displayStr = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            const displayEl = document.getElementById('cpr-timer-display');
+            if (displayEl) displayEl.innerText = displayStr;
+        }
+
+        function playMetronomeBeep() {
+            if (isMuted || !audioCtx) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
+                
+                gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+                
+                osc.connect(gain);
+                gain.connect(volumeNode);
+                
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.06);
+            } catch(e) {}
+        }
+
+        function adjustJoules(amount) {
+            targetJoules = Math.max(50, Math.min(360, targetJoules + amount));
+            document.getElementById('defib-joules').innerText = targetJoules;
+            playMetronomeBeep(); 
+        }
+
+        // --- STREAMING_CHUNK: Sistema de analisis y desfibrilación automática... ---
+        function analyzeRhythm() {
+            if (!paddlesConnected) return;
+            
+            toggleMetronome(false);
+
+            speakPrompt("Analizando el ritmo cardíaco, no toque al paciente.", () => {
+                setTimeout(() => {
+                    const isShockable = (currentKey === 'fib_ventricular' || currentKey === 'taq_ventricular' || currentKey === 'torsades');
+                    
+                    if (isShockable) {
+                        speakPrompt("Se aconseja dar el choque, cargando.", () => {
+                            chargeCapacitor();
+                        });
+                    } else {
+                        speakPrompt("No se aconseja choque. Comience a dar RCP.", () => {
+                            toggleMetronome(true);
+                        });
+                    }
+                }, 1000);
+            });
+        }
+
+        function playChargingOscillator() {
+            if (isMuted || !audioCtx) return;
+            try {
+                chargingAudioOsc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                
+                chargingAudioOsc.type = 'sine';
+                chargingAudioOsc.frequency.setValueAtTime(250, audioCtx.currentTime);
+                chargingAudioOsc.frequency.linearRampToValueAtTime(1200, audioCtx.currentTime + 2.5);
+                
+                gain.gain.setValueAtTime(0.01, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.18, audioCtx.currentTime + 2.5);
+                
+                chargingAudioOsc.connect(gain);
+                gain.connect(volumeNode);
+                chargingAudioOsc.start();
+            } catch(e) {}
+        }
+
+        function stopChargingOscillator() {
+            if (chargingAudioOsc) {
+                try {
+                    chargingAudioOsc.stop();
+                } catch(e) {}
+                chargingAudioOsc = null;
+            }
+        }
+
+        function chargeCapacitor() {
+            if (!paddlesConnected || chargeState === 'charging') return;
+            
+            chargeState = 'charging';
+            
+            document.getElementById('btn-defib-analyze').classList.add('hidden');
+            document.getElementById('charging-status-indicator').classList.remove('hidden');
+            
+            document.getElementById('charge-progress-bar').classList.remove('hidden');
+            const fill = document.getElementById('charge-progress-fill');
+            fill.style.width = '0%';
+            
+            playChargingOscillator();
+            
+            let progress = 0;
+            chargeProgressInterval = setInterval(() => {
+                progress += 4;
+                fill.style.width = `${progress}%`;
+                
+                if (progress >= 100) {
+                    clearInterval(chargeProgressInterval);
+                    stopChargingOscillator();
+                    chargeState = 'ready';
+                    
+                    playPulseBeep(200); 
+                    speakPrompt("Desfibrilador cargado. No toque al paciente. Administre Descarga.", () => {
+                        const shockBtn = document.getElementById('btn-defib-shock');
+                        shockBtn.disabled = false;
+                        shockBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                        shockBtn.classList.add('animate-pulse');
+                        shockBtn.focus();
+                    });
+                }
+            }, 100);
+        }
+
+        function dischargeShock() {
+            if (chargeState !== 'ready') return;
+            
+            const flash = document.getElementById('shock-flash');
+            flash.classList.add('shock-flash-effect');
+            setTimeout(() => {
+                flash.classList.remove('shock-flash-effect');
+            }, 500);
+
+            if (!isMuted && audioCtx) {
+                try {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(140, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(1, audioCtx.currentTime + 0.15);
+                    gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+                    osc.connect(gain);
+                    gain.connect(volumeNode);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.16);
+                } catch(e) {}
+            }
+
+            speakPrompt("Choque administrado. Comience a dar RCP.", () => {
+                toggleMetronome(true);
+            });
+            
+            chargeState = 'idle';
+            document.getElementById('charge-progress-bar').classList.add('hidden');
+            document.getElementById('charging-status-indicator').classList.add('hidden');
+            document.getElementById('btn-defib-analyze').classList.remove('hidden');
+            
+            const shockBtn = document.getElementById('btn-defib-shock');
+            shockBtn.disabled = true;
+            shockBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            shockBtn.classList.remove('animate-pulse');
+            
+            if (defibShockSuccess && (currentKey === 'fib_ventricular' || currentKey === 'taq_ventricular' || currentKey === 'torsades')) {
+                setTimeout(() => {
+                    // Si se administró Amiodarona previamente, el ritmo sinusal de retorno es más estable
+                    setRhythm('sinusal');
+                    if (amiodaroneAdministered) {
+                        logDrugAdministration("Fisiología: Respuesta hemodinámica exitosa optimizada por Amiodarona.");
+                        amiodaroneAdministered = false;
+                    }
+                }, 1000);
+            }
+        }
+
+        // --- STREAMING_CHUNK: Creando el selector dinámico de la biblioteca de ritmos... ---
+        function setRhythm(key) {
+            currentKey = key;
+            const r = SCENARIOS[key];
+            
+            document.getElementById('clinical-desc').innerText = r.desc;
+            document.getElementById('vital-name').innerText = r.name;
+            
+            const container = document.getElementById('diagnosis-container');
+            container.classList.add('hidden');
+            document.getElementById('btn-diag-text').innerText = "Ver Diagnóstico Probable";
+            document.getElementById('btn-diag-icon').className = "fi fi-rr-eye text-base";
+
+            document.getElementById('diagnosis-title').innerText = r.diagTitle || r.name;
+            document.getElementById('diagnosis-explain').innerHTML = r.diagExpl || r.desc;
+
+            const sevIcon = document.getElementById('diag-severity-icon');
+            sevIcon.className = `fi ${r.diagIcon || 'fi-rr-shield-check'} ${r.diagColor || 'text-emerald-400'} text-lg`;
+            
+            // Cargar datos en los displays
+            updateDisplays(r.bpm, r.bp_sys, r.bp_dia, r.spo2, r.etco2);
+
+            const boxFc = document.getElementById('box-fc');
+            const boxTa = document.getElementById('box-ta');
+            const boxSpo2 = document.getElementById('box-spo2');
+            const alarmBanner = document.getElementById('alarm-banner');
+
+            const isCritical = r.status.includes("CRÍTICO") || r.status.includes("PARO") || r.status.includes("Peligroso");
+
+            if (isCritical) {
+                boxFc.className = "group relative critical-flashing border rounded-xl p-3 flex flex-col justify-between flex-1 text-red-500";
+                boxTa.className = "group relative critical-flashing border rounded-xl p-3 flex flex-col justify-between flex-1 text-red-500";
+                boxSpo2.className = "group relative bg-black/40 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between flex-1 text-red-400";
+                alarmBanner.classList.remove('hidden');
+                
+                if (r.bpm === 0) startFlatline();
+                else stopFlatline();
+            } else {
+                boxFc.className = "group relative bg-black/40 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between flex-1 text-slate-100";
+                boxTa.className = "group relative bg-black/40 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between flex-1 text-slate-100";
+                boxSpo2.className = "group relative bg-black/40 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between flex-1 text-slate-100";
+                alarmBanner.classList.add('hidden');
+                stopFlatline();
+            }
+
+            if (r.spo2 < 90 && r.bpm > 0) {
+                boxSpo2.className = "group relative critical-flashing border rounded-xl p-3 flex flex-col justify-between flex-1 text-red-500";
+            }
+
+            document.querySelectorAll('.btn-rhythm').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.key === key) btn.classList.add('active');
+            });
+            
+            container.classList.add('hidden');
+            toggleMetronome(false);
+        }
+
+        function updateDisplays(bpm, sys, dia, spo2, etco2) {
+            document.getElementById('v-bpm').innerText = bpm === 0 ? "0" : bpm;
+            document.getElementById('v-bp').innerText = bpm === 0 ? "0/0" : `${sys}/${dia}`;
+            
+            let pam = 0;
+            if (bpm > 0 && sys > 0) {
+                pam = Math.round(dia + (sys - dia) / 3);
+                document.getElementById('v-map').innerText = pam;
+            } else {
+                document.getElementById('v-map').innerText = "0";
+            }
+
+            document.getElementById('v-spo2').innerText = bpm === 0 ? "0" : spo2;
+            document.getElementById('v-etco2').innerText = etco2;
+        }
+
+        function toggleDiagnosis() {
+            const container = document.getElementById('diagnosis-container');
+            const btnText = document.getElementById('btn-diag-text');
+            const btnIcon = document.getElementById('btn-diag-icon');
+            
+            if (container.classList.contains('hidden')) {
+                container.classList.remove('hidden');
+                btnText.innerText = "Ocultar Diagnóstico";
+                btnIcon.className = "fi fi-rr-eye-crossed text-base";
+            } else {
+                container.classList.add('hidden');
+                btnText.innerText = "Ver Diagnóstico Probable";
+                btnIcon.className = "fi fi-rr-eye text-base";
+            }
+        }
+
+        // --- STREAMING_CHUNK: Creando el modelador matemático de curvas de pletismografía y CO2... ---
+        function getPletValue(t, bpm, isAsystole) {
+            if (isAsystole) return (Math.random() - 0.5) * 1.5; 
+            
+            if (t < 0.25) return 35 * Math.sin((t / 0.25) * (Math.PI / 2)); 
+            if (t < 0.35) return 35 - 10 * Math.sin(((t - 0.25) / 0.10) * Math.PI); 
+            if (t < 0.90) return 25 * Math.cos(((t - 0.35) / 0.55) * (Math.PI / 2)); 
+            return 0;
+        }
+
+        function getCO2Value(t, isAsystole) {
+            if (isAsystole) return (Math.random() - 0.5) * 1.0; 
+
+            if (t < 0.15) return 0; 
+            if (t < 0.25) return 30 * ((t - 0.15) / 0.10); 
+            if (t < 0.70) return 30 + 5 * Math.sin(((t - 0.25) / 0.45) * Math.PI); 
+            if (t < 0.80) return 35 * (1 - (t - 0.70) / 0.10); 
+            return 0;
+        }
+
+        function buildRhythmList() {
+            const list = document.getElementById('rhythm-list');
+            list.innerHTML = ''; 
+            Object.keys(SCENARIOS).forEach(key => {
+                const r = SCENARIOS[key];
+                const btn = document.createElement('button');
+                btn.className = `btn-rhythm text-left p-3 rounded-xl border border-slate-800 bg-slate-900/60 hover:bg-slate-850 flex justify-between items-center transition-all w-full`;
+                btn.dataset.key = key;
+                btn.onclick = () => setRhythm(key);
+                
+                const isCrit = r.status.includes("CRÍTICO") || r.status.includes("PARO");
+                const badgeColor = isCrit ? "bg-red-950 text-red-400 border-red-800" : (r.status === "Normal" ? "bg-emerald-950 text-emerald-400 border-emerald-800" : "bg-sky-950 text-sky-400 border-sky-850");
+
+                const statusIcon = isCrit ? "fi-rr-triangle-warning" : (r.status === "Normal" ? "fi-rr-badge-check" : "fi-rr-chart-line-up-down");
+                btn.innerHTML = `
+                    <i class="fi ${statusIcon} text-base me-2 ${isCrit ? 'text-red-400' : (r.status === 'Normal' ? 'text-emerald-400' : 'text-sky-400')}"></i>
+                    <div class="flex flex-col grow">
+                        <span class="text-xs font-semibold text-slate-100">${r.name}</span>
+                        <span class="text-[10px] text-slate-400 mt-0.5 font-mono-clinical">${r.bpm > 0 ? r.bpm + ' LPM' : 'Inactivo'} | SpO2: ${r.bpm > 0 ? r.spo2 + '%' : '--'}</span>
+                    </div>
+                    <span class="text-[9px] font-bold px-2 py-0.5 rounded border ${badgeColor}">${r.status}</span>
+                `;
+                list.appendChild(btn);
+            });
+        }
+
+        // --- STREAMING_CHUNK: Implementando la administración de fármacos interactivos... ---
+        function administerDrug(drugId) {
+            initAudio();
+            const r = SCENARIOS[currentKey];
+            let name = "";
+            let consequenceText = "";
+            let timeStr = new Date().toLocaleTimeString();
+
+            if (drugId === 'adenosina') {
+                name = "Adenosina 6mg IV";
+                consequenceText = "Bloqueo transitorio de conducción en el nodo AV. Induciendo asistolia química breve.";
+                logDrugAdministration(`[${timeStr}] ${name}: ${consequenceText}`);
+                speakPrompt("Adenosina administrada. Monitoree asistolia transitoria.");
+                
+                // Efecto de pausa de asistolia temporal de 3 segundos
+                const savedRhythm = currentKey;
+                const savedBpm = r.bpm;
+                const savedSys = r.bp_sys;
+                const savedDia = r.bp_dia;
+                const savedSpo2 = r.spo2;
+                const savedEtco2 = r.etco2;
+
+                currentKey = 'asistolia';
+                updateDisplays(0, 0, 0, 0, 4);
+                startFlatline();
+
+                setTimeout(() => {
+                    stopFlatline();
+                    // Retorno automático a Sinusal (mecanismo de cardioversión clínica por Adenosina)
+                    setRhythm('sinusal');
+                    logDrugAdministration(`[${new Date().toLocaleTimeString()}] Adenosina: Cardioversión química exitosa a Ritmo Sinusal.`);
+                }, 3500);
+
+            } else if (drugId === 'adrenalina') {
+                name = "Adrenalina 1mg IV";
+                // Aumenta frecuencia y presión en ritmos lentos o de paro
+                if (r.bpm > 0) {
+                    r.bpm = Math.min(200, r.bpm + 15);
+                    r.bp_sys = Math.min(220, r.bp_sys + 25);
+                    r.bp_dia = Math.min(130, r.bp_dia + 15);
+                } else {
+                    // En asistolia / AESP, la adrenalina estimula la presión y reactivación
+                    r.etco2 = Math.min(15, r.etco2 + 5); 
+                }
+                consequenceText = "Efecto simpaticomimético α/β adrenérgico. Aumento de FC, TA y vasoconstricción periférica.";
+                logDrugAdministration(`[${timeStr}] ${name}: ${consequenceText}`);
+                speakPrompt("Adrenalina administrada. Aumento de presión de perfusión coronaria.");
+                setRhythm(currentKey);
+
+            } else if (drugId === 'atropina') {
+                name = "Atropina 1mg IV";
+                if (currentKey === 'bradicardia' || r.bpm < 60) {
+                    r.bpm = Math.min(95, r.bpm + 25);
+                    r.bp_sys = Math.min(125, r.bp_sys + 15);
+                    consequenceText = "Efecto anticolinérgico. Revierte bradicardia vagal a frecuencia normal.";
+                    speakPrompt("Atropina administrada. Elevando la frecuencia cardíaca.");
+                } else {
+                    consequenceText = "Efecto anticolinérgico leve. Sin cambio significativo (FC basal normal/alta).";
+                }
+                logDrugAdministration(`[${timeStr}] ${name}: ${consequenceText}`);
+                setRhythm(currentKey);
+
+            } else if (drugId === 'amiodarona') {
+                name = "Amiodarona 300mg IV";
+                amiodaroneAdministered = true;
+                consequenceText = "Antiarrítmico de clase III. Bloqueo de canales de K+. Facilita la desfibrilación de ritmos refractarios.";
+                logDrugAdministration(`[${timeStr}] ${name}: ${consequenceText}`);
+                speakPrompt("Amiodarona administrada. Optimizando canales para desfibrilación.");
+
+            } else if (drugId === 'sulfato_mg') {
+                name = "Sulfato de Magnesio 2g IV";
+                if (currentKey === 'torsades') {
+                    consequenceText = "Estabilizador de membrana miocárdica. Tratamiento específico para Torsades de Pointes. Revirtiendo arritmia.";
+                    speakPrompt("Sulfato de magnesio administrado. Estabilizando potencial de membrana.");
+                    setTimeout(() => {
+                        setRhythm('sinusal');
+                        logDrugAdministration(`[${new Date().toLocaleTimeString()}] Magnesio: Torsades de Pointes revertida exitosamente.`);
+                    }, 3000);
+                } else {
+                    consequenceText = "Estabilización iónica de membrana celular. Sin efectos de ritmo activos.";
+                }
+                logDrugAdministration(`[${timeStr}] ${name}: ${consequenceText}`);
+            }
+        }
+
+        function logDrugAdministration(logText) {
+            const container = document.getElementById('drug-admin-log');
+            if (drugLog.length === 0) {
+                container.innerHTML = "";
+            }
+            drugLog.push(logText);
+            const entry = document.createElement('div');
+            entry.className = 'text-emerald-400 border-l border-emerald-500 pl-2 py-0.5 animate-fadeIn';
+            entry.innerText = logText;
+            container.appendChild(entry);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // --- STREAMING_CHUNK: Creando el control de dialog modal de signos vitales... ---
+        function toggleVitalsModal(show) {
+            const modal = document.getElementById('vitals-modal');
+            if (show) {
+                // Llenar datos actuales en campos de entrada del modal
+                const r = SCENARIOS[currentKey];
+                document.getElementById('modal-fc').value = r.bpm;
+                document.getElementById('modal-spo2').value = r.spo2;
+                document.getElementById('modal-sys').value = r.bp_sys;
+                document.getElementById('modal-dia').value = r.bp_dia;
+                document.getElementById('modal-etco2').value = r.etco2;
+                document.getElementById('modal-fr').value = r.fr || 16;
+                
+                // Llenar selector de ritmos morfología base
+                const select = document.getElementById('modal-rhythm-select');
+                select.innerHTML = "";
+                Object.keys(SCENARIOS).forEach(k => {
+                    const option = document.createElement('option');
+                    option.value = k;
+                    option.text = SCENARIOS[k].name;
+                    if (k === currentKey) option.selected = true;
+                    select.appendChild(option);
+                });
+
+                validateVitalsModal(r.bpm);
+
+                bootstrap.Modal.getOrCreateInstance(modal).show();
+            } else {
+                bootstrap.Modal.getOrCreateInstance(modal).hide();
+            }
+        }
+
+        function validateVitalsModal(fcValue) {
+            const fc = parseInt(fcValue);
+            const badge = document.getElementById('fc-validation-badge');
+            if (isNaN(fc) || fc <= 0) {
+                badge.innerText = "Paro / Inactivo";
+                badge.className = "text-[9px] font-bold px-2 py-0.5 rounded self-start mt-0.5 bg-red-950 text-red-400 border border-red-800";
+            } else if (fc < 60) {
+                badge.innerText = "Bradicardia Severa";
+                badge.className = "text-[9px] font-bold px-2 py-0.5 rounded self-start mt-0.5 bg-sky-950 text-sky-400 border border-sky-850";
+            } else if (fc > 100) {
+                badge.innerText = "Taquicardia Crítica";
+                badge.className = "text-[9px] font-bold px-2 py-0.5 rounded self-start mt-0.5 bg-red-950 text-red-400 border border-red-800";
+            } else {
+                badge.innerText = "Fisiológico Normal";
+                badge.className = "text-[9px] font-bold px-2 py-0.5 rounded self-start mt-0.5 bg-emerald-950 text-emerald-400 border border-emerald-900";
+            }
+        }
+
+        function applyCustomVitals() {
+            // Extraer y sanitizar datos ingresados
+            const fc = Math.max(0, Math.min(250, parseInt(document.getElementById('modal-fc').value) || 0));
+            const spo2 = Math.max(0, Math.min(100, parseInt(document.getElementById('modal-spo2').value) || 0));
+            const sys = Math.max(0, Math.min(250, parseInt(document.getElementById('modal-sys').value) || 0));
+            const dia = Math.max(0, Math.min(180, parseInt(document.getElementById('modal-dia').value) || 0));
+            const etco2 = Math.max(0, Math.min(100, parseInt(document.getElementById('modal-etco2').value) || 0));
+            const fr = Math.max(0, Math.min(60, parseInt(document.getElementById('modal-fr').value) || 12));
+            const baseRhythmKey = document.getElementById('modal-rhythm-select').value;
+
+            // Sobrescribir fisiología en el ritmo de base seleccionado
+            SCENARIOS[baseRhythmKey].bpm = fc;
+            SCENARIOS[baseRhythmKey].spo2 = spo2;
+            SCENARIOS[baseRhythmKey].bp_sys = sys;
+            SCENARIOS[baseRhythmKey].bp_dia = dia;
+            SCENARIOS[baseRhythmKey].etco2 = etco2;
+            SCENARIOS[baseRhythmKey].fr = fr;
+
+            // Validar ritmos rápidos/lentos para adaptar descripciones dinámicas
+            if (baseRhythmKey === 'sinusal' || baseRhythmKey === 'bradicardia' || baseRhythmKey === 'taquicardia') {
+                if (fc > 100) {
+                    SCENARIOS[baseRhythmKey].status = "Taquicardia Fisiológica";
+                    SCENARIOS[baseRhythmKey].desc = `Se ha forzado un estado hiperdinámico rápido (${fc} LPM). El trazo conserva la morfología sinusal pero los intervalos diastólicos T-P están contraídos.`;
+                } else if (fc < 60) {
+                    SCENARIOS[baseRhythmKey].status = "Bradicardia Sinusal";
+                    SCENARIOS[baseRhythmKey].desc = `Se ha forzado un estado lento de conducción (${fc} LPM). Las ondas conservan una morfología normal de despolarización pero con una fase de reposo prolongada.`;
+                } else {
+                    SCENARIOS[baseRhythmKey].status = "Normal";
+                    SCENARIOS[baseRhythmKey].desc = "Ritmo cardiaco fisiológico regular dentro de los parámetros esperados de perfusión.";
+                }
+            }
+
+            setRhythm(baseRhythmKey);
+            buildRhythmList(); 
+            toggleVitalsModal(false);
+            logDrugAdministration(`[${new Date().toLocaleTimeString()}] Fisiología: Vitals actualizados a FC: ${fc} LPM, TA: ${sys}/${dia} mmHg, SpO2: ${spo2}%, ETCO2: ${etco2} mmHg.`);
+        }
+
+        // --- STREAMING_CHUNK: Implementando la carga y dibujo de imagenes de trazo... ---
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    uploadedEkgImage = img;
+                    isUsingUploadedImage = true;
+                    document.getElementById('custom-image-badge').classList.remove('hidden');
+                    logDrugAdministration(`[${new Date().toLocaleTimeString()}] Sistema: Trazo de imagen externa cargado de manera exitosa.`);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // --- STREAMING_CHUNK: Creando el bucle de renderizado continuo de 60 FPS... ---
+        function loop() {
+            if (!isPaused) {
+                globalTime += sweepSpeed;
+                const r = SCENARIOS[currentKey];
+
+                let bpmClock = r.bpm > 0 ? (r.bpm / 60) * 0.012 : 0.015;
+                let playBeepThisFrame = false;
+
+                cycleProgress += bpmClock * (sweepSpeed * 0.4);
+                if (cycleProgress >= 1) {
+                    cycleProgress = 0;
+                    if (r.bpm > 0) playBeepThisFrame = true;
+                }
+
+                pletCycleProgress += bpmClock * (sweepSpeed * 0.4);
+                if (pletCycleProgress >= 1) pletCycleProgress = 0;
+
+                co2CycleProgress += 0.003 * (sweepSpeed * 0.4);
+                if (co2CycleProgress >= 1) co2CycleProgress = 0;
+
+                let rawEcgVal = r.generator(cycleProgress, globalTime);
+                let ecgVal = projectLead(rawEcgVal, currentLead, cycleProgress);
+                
+                let pletVal = getPletValue(pletCycleProgress, r.bpm, r.bpm === 0);
+                let co2Val = getCO2Value(co2CycleProgress, r.bpm === 0);
+
+                let ecgY = ecgCenter - (ecgVal * ecgScale); 
+                let pletY = pletCenter - (pletVal * pletScale); 
+                let co2Y = co2Center - (co2Val * co2Scale); 
+
+                for (let i = 0; i < sweepSpeed; i++) {
+                    let targetX = Math.floor(sweepX + i) % canvas.width;
+                    ecgHistory[targetX] = ecgY;
+                    pletHistory[targetX] = pletY;
+                    co2History[targetX] = co2Y;
+                }
+
+                if (playBeepThisFrame) {
+                    playPulseBeep(r.spo2);
+                }
+
+                uploadedImageOffset = (uploadedImageOffset + sweepSpeed * 0.6) % canvas.width;
+            }
+
+            drawGrid();
+
+            monitorCtx.lineWidth = 2.4;
+            monitorCtx.lineJoin = 'round';
+            monitorCtx.lineCap = 'round';
+
+            const r = SCENARIOS[currentKey];
+
+            // --- CANAL 1: ECG (VERDE / ROJO ALARMA / O IMAGEN) ---
+            if (isUsingUploadedImage && uploadedEkgImage) {
+                // Renderizar el trazo de imagen scrolling como fondo del canal de ECG
+                const channelHeight = 140;
+                const channelYStart = 10;
+                monitorCtx.save();
+                // Clip para limitar el trazo cargado solo a la caja de ECG
+                monitorCtx.beginPath();
+                monitorCtx.rect(0, channelYStart, canvas.width, channelHeight);
+                monitorCtx.clip();
+
+                // Dibujar dos copias de la imagen para crear un desplazamiento continuo perfecto
+                monitorCtx.globalAlpha = 0.85;
+                const scrollX = uploadedImageOffset;
+                monitorCtx.drawImage(uploadedEkgImage, -scrollX, channelYStart, canvas.width, channelHeight);
+                monitorCtx.drawImage(uploadedEkgImage, canvas.width - scrollX, channelYStart, canvas.width, channelHeight);
+                monitorCtx.restore();
+
+            } else {
+                // Generador Matemático Estándar
+                if (currentKey === 'sinusal') {
+                    monitorCtx.strokeStyle = monitorTheme === 'dark' ? '#10b981' : '#059669';
+                    monitorCtx.shadowColor = '#10b981';
+                } else if (r.status.includes("CRÍTICO") || r.status.includes("PARO")) {
+                    monitorCtx.strokeStyle = monitorTheme === 'dark' ? '#ef4444' : '#dc2626';
+                    monitorCtx.shadowColor = '#ef4444';
+                } else {
+                    monitorCtx.strokeStyle = monitorTheme === 'dark' ? '#06b6d4' : '#0891b2';
+                    monitorCtx.shadowColor = '#06b6d4';
+                }
+                
+                if (monitorTheme === 'dark') monitorCtx.shadowBlur = 4;
+                monitorCtx.beginPath();
+                let first = true;
+                for (let x = 0; x < canvas.width; x++) {
+                    let dist = x - sweepX;
+                    if (dist < 0) dist += canvas.width;
+                    if (dist > scanBarWidth) {
+                        if (first) {
+                            monitorCtx.moveTo(x, ecgHistory[x]);
+                            first = false;
+                        } else {
+                            monitorCtx.lineTo(x, ecgHistory[x]);
+                        }
+                    } else {
+                        first = true;
+                    }
+                }
+                monitorCtx.stroke();
+            }
+
+            // --- CANAL 2: PLETISMOGRAFÍA (CIAN) ---
+            if (showPlet) {
+                monitorCtx.strokeStyle = monitorTheme === 'dark' ? '#06b6d4' : '#0891b2';
+                monitorCtx.shadowColor = '#06b6d4';
+                if (monitorTheme === 'dark') monitorCtx.shadowBlur = 4;
+                monitorCtx.beginPath();
+                let first = true;
+                for (let x = 0; x < canvas.width; x++) {
+                    let dist = x - sweepX;
+                    if (dist < 0) dist += canvas.width;
+                    if (dist > scanBarWidth) {
+                        if (first) {
+                            monitorCtx.moveTo(x, pletHistory[x]);
+                            first = false;
+                        } else {
+                            monitorCtx.lineTo(x, pletHistory[x]);
+                        }
+                    } else {
+                        first = true;
+                    }
+                }
+                monitorCtx.stroke();
+            }
+
+            // --- CANAL 3: CAPNOGRAFÍA (AMARILLO DEGRADADO) ---
+            if (showCapno) {
+                monitorCtx.strokeStyle = monitorTheme === 'dark' ? '#eab308' : '#d97706';
+                monitorCtx.shadowColor = '#eab308';
+                if (monitorTheme === 'dark') monitorCtx.shadowBlur = 4;
+                monitorCtx.beginPath();
+                let first = true;
+                for (let x = 0; x < canvas.width; x++) {
+                    let dist = x - sweepX;
+                    if (dist < 0) dist += canvas.width;
+                    if (dist > scanBarWidth) {
+                        if (first) {
+                            monitorCtx.moveTo(x, co2History[x]);
+                            first = false;
+                        } else {
+                            monitorCtx.lineTo(x, co2History[x]);
+                        }
+                    } else {
+                        first = true;
+                    }
+                }
+                monitorCtx.stroke();
+
+                monitorCtx.fillStyle = monitorTheme === 'dark' ? 'rgba(234, 179, 8, 0.12)' : 'rgba(217, 119, 6, 0.12)';
+                monitorCtx.beginPath();
+                first = true;
+                let startX = -1;
+                for (let x = 0; x < canvas.width; x++) {
+                    let dist = x - sweepX;
+                    if (dist < 0) dist += canvas.width;
+                    if (dist > scanBarWidth) {
+                        if (first) {
+                            monitorCtx.moveTo(x, co2Center); 
+                            monitorCtx.lineTo(x, co2History[x]);
+                            startX = x;
+                            first = false;
+                        } else {
+                            monitorCtx.lineTo(x, co2History[x]);
+                        }
+                    } else {
+                        if (!first && startX !== -1) {
+                            monitorCtx.lineTo(x - 1, co2Center);
+                            monitorCtx.closePath();
+                            monitorCtx.fill();
+                            monitorCtx.beginPath();
+                            first = true;
+                            startX = -1;
+                        }
+                    }
+                }
+                if (!first && startX !== -1) {
+                    monitorCtx.lineTo(canvas.width - 1, co2Center);
+                    monitorCtx.closePath();
+                    monitorCtx.fill();
+                }
+            }
+            monitorCtx.shadowBlur = 0; 
+
+            // Cabezas de barrido brillante (agujas)
+            monitorCtx.fillStyle = monitorTheme === 'dark' ? '#ffffff' : '#334155';
+            monitorCtx.beginPath();
+            if (!isUsingUploadedImage) {
+                monitorCtx.arc(sweepX, ecgHistory[Math.floor(sweepX)], 4, 0, 2 * Math.PI);
+            }
+            if (showPlet) monitorCtx.arc(sweepX, pletHistory[Math.floor(sweepX)], 4, 0, 2 * Math.PI);
+            if (showCapno) monitorCtx.arc(sweepX, co2History[Math.floor(sweepX)], 4, 0, 2 * Math.PI);
+            monitorCtx.fill();
+
+            if (!isPaused) {
+                sweepX = (sweepX + sweepSpeed) % canvas.width;
+            }
+
+            requestAnimationFrame(loop);
+        }
+
+        // --- STREAMING_CHUNK: Creando el observador de tamaño responsivo... ---
+        let resizeTick = false;
+        function resizeCanvas() {
+            const parent = canvas.parentElement;
+            if (!parent) return;
+            
+            canvas.width = parent.clientWidth;
+            canvas.height = parent.clientHeight;
+            
+            updateChannelPositions();
+        }
+
+        window.onload = () => {
+            buildRhythmList();
+            setRhythm('sinusal');
+            setTheme('dark');
+            
+            setInterval(() => { document.getElementById('live-clock').innerText = new Date().toTimeString().split(' ')[0]; }, 1000);
+            
+            if (window.ResizeObserver) {
+                const resizeObserver = new ResizeObserver(() => {
+                    if (!resizeTick) {
+                        resizeTick = true;
+                        window.requestAnimationFrame(() => {
+                            resizeCanvas();
+                            resizeTick = false;
+                        });
+                    }
+                });
+                resizeObserver.observe(canvas.parentElement);
+            } else {
+                window.addEventListener('resize', resizeCanvas);
+                resizeCanvas();
+            }
+            
+            updateButtonState(document.getElementById('btn-chan-ta'), showTA);
+            updateButtonState(document.getElementById('btn-chan-spo2'), showPlet);
+            updateButtonState(document.getElementById('btn-chan-capno'), showCapno);
+            
+            document.getElementById('box-ta').style.display = showTA ? 'flex' : 'none';
+            document.getElementById('box-spo2').style.display = showPlet ? 'flex' : 'none';
+            document.getElementById('box-etco2').style.display = showCapno ? 'flex' : 'none';
+            
+            document.getElementById('label-plet').style.display = showPlet ? 'block' : 'none';
+            document.getElementById('label-co2').style.display = showCapno ? 'block' : 'none';
+
+            loop();
+        };
+    </script>
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+    /* Respaldo de iconos: si un nombre no existe en UIcons 4.0.0 se reemplaza por uno equivalente. */
+    (function () {
+        const FALLBACK = {
+            'fi-rr-volume-mute': 'fi-rr-bell-slash', 'fi-rr-volume': 'fi-rr-bell-ring',
+            'fi-rr-heart-crack': 'fi-rr-circle-xmark', 'fi-rr-skull': 'fi-rr-danger-sign',
+            'fi-rr-flame': 'fi-rr-explosion', 'fi-rr-triangle-warning': 'fi-rr-danger-sign',
+            'fi-rr-shield-exclamation': 'fi-rr-danger-sign', 'fi-rr-shield-check': 'fi-rr-badge-check',
+            'fi-rr-settings-sliders': 'fi-rr-apps', 'fi-rr-settings': 'fi-rr-apps',
+            'fi-rr-menu-burger': 'fi-rr-bars-staggered', 'fi-rr-heart': 'fi-rr-anatomical-heart',
+            'fi-rr-tint': 'fi-rr-blood', 'fi-rr-wind': 'fi-rr-circle-small', 'fi-rr-info': 'fi-rr-exclamation',
+            'fi-rr-stethoscope': 'fi-rr-doctor', 'fi-rr-syringe': 'fi-rr-capsules', 'fi-rr-play': 'fi-rr-angle-small-right'
+        };
+        const GENERIC = 'fi-rr-circle-small';
+        const SEL = 'i[class*="fi-rr-"]';
+        function isMissing(el) {
+            const c = getComputedStyle(el, '::before').content;
+            return !c || c === 'none' || c === 'normal';
+        }
+        function fix(el) {
+            const m = (el.getAttribute('class') || '').match(/fi-rr-[a-z0-9-]+/);
+            if (!m || !isMissing(el)) return;
+            const alt = FALLBACK[m[0]] || GENERIC;
+            if (alt !== m[0]) el.classList.replace(m[0], alt);
+        }
+        let queued = false;
+        function scan() {
+            queued = false;
+            document.querySelectorAll(SEL).forEach(fix);
+        }
+        function schedule() {
+            if (!queued) { queued = true; requestAnimationFrame(scan); }
+        }
+        window.addEventListener('load', schedule);
+        new MutationObserver(muts => {
+            for (const m of muts) {
+                if (m.type === 'attributes' && m.target.tagName === 'I') return schedule();
+                if (m.type === 'childList') {
+                    for (const n of m.addedNodes) {
+                        if (n.nodeType === 1 && (n.tagName === 'I' || n.querySelector(SEL))) return schedule();
+                    }
+                }
+            }
+        }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+    })();
+    </script>
+</body>
+</html>
